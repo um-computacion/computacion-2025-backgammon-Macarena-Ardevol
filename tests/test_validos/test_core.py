@@ -31,5 +31,16 @@ class TestCore(unittest.TestCase):
         checker = Checker("black")
         self.assertEqual(checker.__color__, "black")
 
+    def test_game_has_board_and_no_players(self):
+        game = BackgammonGame()
+        self.assertEqual(len(game.__players__), 0)
+
+    def test_game_add_player(self):
+        game = BackgammonGame()
+        game.add_player("Alice", "white")
+        self.assertEqual(len(game.__players__), 1)
+        self.assertEqual(game.current_player().__color__, "white")
+
+
 if __name__ == "__main__":
     unittest.main()
