@@ -20,10 +20,12 @@ class TestCore(unittest.TestCase):
         self.assertEqual(player.__color__, "white")
         self.assertEqual(player.__checkers__, 15)
 
-    def test_dice_roll_range(self):
+    def test_dice_roll_tuple_range(self):
         dice = Dice()
-        roll = dice.roll()
-        self.assertIn(roll, range(1, 7))
+        a, b = dice.roll()
+        self.assertIn(a, range(1, 7))
+        self.assertIn(b, range(1, 7))
+        self.assertIsInstance(dice.is_double(), bool)
 
     def test_checker_creation(self):
         checker = Checker("black")
