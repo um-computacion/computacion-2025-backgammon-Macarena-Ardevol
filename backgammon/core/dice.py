@@ -1,8 +1,6 @@
 import random
 
 class Dice:
-    """
-    Representa los dados usados en Backgammon.
-    """
-    def roll(self):
+    """Representa los dados usados en Backgammon."""
+    def roll(self) -> int:
         return random.randint(1, 6)

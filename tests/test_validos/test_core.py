@@ -12,13 +12,13 @@ class TestCore(unittest.TestCase):
 
     def test_board_points(self):
         board = Board()
-        self.assertEqual(len(board.points), 24)
+        self.assertEqual(len(board.__points__), 24)
 
     def test_player_creation(self):
         player = Player("Alice", "white")
-        self.assertEqual(player.name, "Alice")
-        self.assertEqual(player.color, "white")
-        self.assertEqual(player.checkers, 15)
+        self.assertEqual(player.__name__, "Alice")
+        self.assertEqual(player.__color__, "white")
+        self.assertEqual(player.__checkers__, 15)
 
     def test_dice_roll_range(self):
         dice = Dice()
@@ -27,7 +27,7 @@ class TestCore(unittest.TestCase):
 
     def test_checker_creation(self):
         checker = Checker("black")
-        self.assertEqual(checker.color, "black")
+        self.assertEqual(checker.__color__, "black")
 
 if __name__ == "__main__":
     unittest.main()
