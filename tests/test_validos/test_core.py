@@ -41,6 +41,16 @@ class TestCore(unittest.TestCase):
         self.assertEqual(len(game.__players__), 1)
         self.assertEqual(game.current_player().__color__, "white")
 
+    def test_game_turn_rotation(self):
+        game = BackgammonGame()
+        game.add_player("Alice", "white")
+        game.add_player("Bob", "black")
+        self.assertEqual(game.current_player().__color__, "white")
+        game.next_turn()
+        self.assertEqual(game.current_player().__color__, "black")
+        game.next_turn()
+        self.assertEqual(game.current_player().__color__, "white")
+
 
 if __name__ == "__main__":
     unittest.main()

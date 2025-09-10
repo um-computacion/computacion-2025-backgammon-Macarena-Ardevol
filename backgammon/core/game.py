@@ -15,3 +15,10 @@ class BackgammonGame:
         if not self.__players__:
             return None
         return self.__players__[self.__current_player_index__]
+
+    def num_players(self) -> int:
+        return len(self.__players__)
+
+    def next_turn(self) -> None:
+        if self.__players__:
+            self.__current_player_index__ = (self.__current_player_index__ + 1) % len(self.__players__)
