@@ -67,7 +67,20 @@ class TestCore(unittest.TestCase):
         self.assertEqual(board.get_point(16), -3)
         self.assertEqual(board.get_point(18), -5)
 
+    def test_game_start_turn_with_fixed_roll(self):
+        game = BackgammonGame()
+        game.add_player("Alice", "white")
+        game.add_player("Bob", "black")
+        r = game.start_turn((3, 4))
+        self.assertEqual(r, (3, 4))
+        self.assertEqual(game.pips(), (3, 4))
 
+    def test_game_start_turn_double_generates_four_pips(self):
+        game = BackgammonGame()
+        game.add_player("Alice", "white")
+        game.add_player("Bob", "black")
+        game.start_turn((5, 5))
+        self.assertEqual(game.pips(), (5, 5, 5, 5))
 
 if __name__ == "__main__":
     unittest.main()
