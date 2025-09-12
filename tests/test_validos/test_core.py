@@ -51,6 +51,23 @@ class TestCore(unittest.TestCase):
         game.next_turn()
         self.assertEqual(game.current_player().__color__, "white")
 
+    def test_board_initial_setup_totals_and_spots(self):
+        board = Board()
+        board.setup_initial()
+        # Totales
+        self.assertEqual(board.count_total(Board.WHITE), 15)
+        self.assertEqual(board.count_total(Board.BLACK), 15)
+        # Spots clave (convención de índices 0..23)
+        self.assertEqual(board.get_point(23), 2)    # blancas
+        self.assertEqual(board.get_point(12), 5)
+        self.assertEqual(board.get_point(7), 3)
+        self.assertEqual(board.get_point(5), 5)
+        self.assertEqual(board.get_point(0), -2)    # negras
+        self.assertEqual(board.get_point(11), -5)
+        self.assertEqual(board.get_point(16), -3)
+        self.assertEqual(board.get_point(18), -5)
+
+
 
 if __name__ == "__main__":
     unittest.main()
