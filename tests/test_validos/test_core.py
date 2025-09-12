@@ -82,5 +82,10 @@ class TestCore(unittest.TestCase):
         game.start_turn((5, 5))
         self.assertEqual(game.pips(), (5, 5, 5, 5))
 
+    def test_cli_app_import(self):
+        from backgammon.cli.app import main
+        self.assertTrue(callable(main))
+
+
 if __name__ == "__main__":
     unittest.main()
