@@ -12,22 +12,45 @@ class TestCore(unittest.TestCase):
 
     def test_board_points(self):
         board = Board()
-        self.assertEqual(len(board.points), 24)
+        self.assertEqual(len(board.__points__), 24)
 
     def test_player_creation(self):
         player = Player("Alice", "white")
-        self.assertEqual(player.name, "Alice")
-        self.assertEqual(player.color, "white")
-        self.assertEqual(player.checkers, 15)
+        self.assertEqual(player.__name__, "Alice")
+        self.assertEqual(player.__color__, "white")
+        self.assertEqual(player.__checkers__, 15)
 
-    def test_dice_roll_range(self):
+    def test_dice_roll_tuple_range(self):
         dice = Dice()
-        roll = dice.roll()
-        self.assertIn(roll, range(1, 7))
+        a, b = dice.roll()
+        self.assertIn(a, range(1, 7))
+        self.assertIn(b, range(1, 7))
+        self.assertIsInstance(dice.is_double(), bool)
 
     def test_checker_creation(self):
         checker = Checker("black")
-        self.assertEqual(checker.color, "black")
+        self.assertEqual(checker.__color__, "black")
+
+    def test_game_has_board_and_no_players(self):
+        game = BackgammonGame()
+        self.assertEqual(len(game.__players__), 0)
+
+    def test_game_add_player(self):
+        game = BackgammonGame()
+        game.add_player("Alice", "white")
+        self.assertEqual(len(game.__players__), 1)
+        self.assertEqual(game.current_player().__color__, "white")
+
+    def test_game_turn_rotation(self):
+        game = BackgammonGame()
+        game.add_player("Alice", "white")
+        game.add_player("Bob", "black")
+        self.assertEqual(game.current_player().__color__, "white")
+        game.next_turn()
+        self.assertEqual(game.current_player().__color__, "black")
+        game.next_turn()
+        self.assertEqual(game.current_player().__color__, "white")
+
 
 if __name__ == "__main__":
     unittest.main()
