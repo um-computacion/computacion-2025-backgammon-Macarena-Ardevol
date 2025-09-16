@@ -51,6 +51,61 @@ class TestCore(unittest.TestCase):
         game.next_turn()
         self.assertEqual(game.current_player().__color__, "white")
 
+    def test_board_initial_setup_totals_and_spots(self):
+        board = Board()
+        board.setup_initial()
+        # Totales
+        self.assertEqual(board.count_total(Board.WHITE), 15)
+        self.assertEqual(board.count_total(Board.BLACK), 15)
+        # Spots clave (convención de índices 0..23)
+        self.assertEqual(board.get_point(23), 2)    # blancas
+        self.assertEqual(board.get_point(12), 5)
+        self.assertEqual(board.get_point(7), 3)
+        self.assertEqual(board.get_point(5), 5)
+        self.assertEqual(board.get_point(0), -2)    # negras
+        self.assertEqual(board.get_point(11), -5)
+        self.assertEqual(board.get_point(16), -3)
+        self.assertEqual(board.get_point(18), -5)
+
+    def test_game_start_turn_with_fixed_roll(self):
+        game = BackgammonGame()
+        game.add_player("Alice", "white")
+        game.add_player("Bob", "black")
+        r = game.start_turn((3, 4))
+        self.assertEqual(r, (3, 4))
+        self.assertEqual(game.pips(), (3, 4))
+
+    def test_game_start_turn_double_generates_four_pips(self):
+        game = BackgammonGame()
+        game.add_player("Alice", "white")
+        game.add_player("Bob", "black")
+        game.start_turn((5, 5))
+        self.assertEqual(game.pips(), (5, 5, 5, 5))
+
+    def test_cli_app_import(self):
+        from backgammon.cli.app import main
+        self.assertTrue(callable(main))
+
+    def test_game_setup_board_totals(self):
+        game = BackgammonGame()
+        game.setup_board()
+        self.assertEqual(game.board().count_total(Board.WHITE), 15)
+        self.assertEqual(game.board().count_total(Board.BLACK), 15)
+
+    def test_cli_format_board_summary(self):
+        from backgammon.cli.app import format_board_summary
+        board = Board()
+        board.setup_initial()
+        s = format_board_summary(board)
+        self.assertIn("Resumen tablero:", s)
+        self.assertIn("[23, 12, 7, 5]", s)
+        self.assertIn("[0, 11, 16, 18]", s)
+
+    def test_cli_entrypoint_exists(self):
+        from backgammon.cli.app import main
+        self.assertTrue(callable(main))
+
+
 
 if __name__ == "__main__":
     unittest.main()
