@@ -86,6 +86,13 @@ class TestCore(unittest.TestCase):
         from backgammon.cli.app import main
         self.assertTrue(callable(main))
 
+    def test_game_setup_board_totals(self):
+        game = BackgammonGame()
+        game.setup_board()
+        self.assertEqual(game.board().count_total(Board.WHITE), 15)
+        self.assertEqual(game.board().count_total(Board.BLACK), 15)
+
+
 
 if __name__ == "__main__":
     unittest.main()

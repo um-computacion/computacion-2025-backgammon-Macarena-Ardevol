@@ -39,3 +39,6 @@ class BackgammonGame:
 
     def pips(self) -> tuple[int, ...]:
         return self.__pips__
+
+    def setup_board(self) -> None:
+        self.__board__.setup_initial()
