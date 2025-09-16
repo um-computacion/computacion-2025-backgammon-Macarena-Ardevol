@@ -101,6 +101,9 @@ class TestCore(unittest.TestCase):
         self.assertIn("[23, 12, 7, 5]", s)
         self.assertIn("[0, 11, 16, 18]", s)
 
+    def test_cli_entrypoint_exists(self):
+        from backgammon.cli.app import main
+        self.assertTrue(callable(main))
 
 
 
