@@ -92,6 +92,16 @@ class TestCore(unittest.TestCase):
         self.assertEqual(game.board().count_total(Board.WHITE), 15)
         self.assertEqual(game.board().count_total(Board.BLACK), 15)
 
+    def test_cli_format_board_summary(self):
+        from backgammon.cli.app import format_board_summary
+        board = Board()
+        board.setup_initial()
+        s = format_board_summary(board)
+        self.assertIn("Resumen tablero:", s)
+        self.assertIn("[23, 12, 7, 5]", s)
+        self.assertIn("[0, 11, 16, 18]", s)
+
+
 
 
 if __name__ == "__main__":
