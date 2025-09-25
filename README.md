@@ -55,6 +55,7 @@ pip install -r backgammon/requirements.txt
 ```
 python -m backgammon.cli --setup --roll 3,4
 ```
+Nota: --roll a,b acepta enteros del 1 al 6. Formatos inválidos o valores vacíos generan ValueError.
 
 ## Tirada automática (sin setup):
 ```

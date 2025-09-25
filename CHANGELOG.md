@@ -38,4 +38,6 @@ Formato: Keep a Changelog.
 - Documentación: README reordenado; JUSTIFICACION completada (atributos, excepciones, testing, SOLID).
 
 ### Changed
+- CLI: validación estricta de `--roll` (vacío/incorrecto → `ValueError`).
 - Ajustes menores de redacción en docs.
+
