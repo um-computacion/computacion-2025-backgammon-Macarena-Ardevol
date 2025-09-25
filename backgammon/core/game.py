@@ -42,3 +42,11 @@ class BackgammonGame:
 
     def setup_board(self) -> None:
         self.__board__.setup_initial()
+
+    def board(self):
+        """Devuelve el tablero actual (solo lectura)."""
+        return self.__board__
+
+    def players(self):
+        """Devuelve una tupla con los jugadores (solo lectura)."""
+        return tuple(self.__players__)
