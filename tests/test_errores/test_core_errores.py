@@ -79,3 +79,17 @@ class TestErroresCore(unittest.TestCase):
     def test_cli_roll_falta_argumento_lanza_systemexit(self):
         with self.assertRaises(SystemExit):
             cli_main(["--roll"]) 
+
+    def test_board_is_blocked_color_invalido(self):
+        b = Board()
+        with self.assertRaises(ValueError):
+            b.is_blocked(0, 0)  # color inválido
+
+    def test_board_dest_from_fuera_del_tablero(self):
+        b = Board()
+        # WHITE desde 1 con pip 2 sale por debajo de 0
+        with self.assertRaises(ValueError):
+            b.dest_from(1, 2, Board.WHITE)
+        # BLACK desde 22 con pip 3 sale por encima de 23
+        with self.assertRaises(ValueError):
+            b.dest_from(22, 3, Board.BLACK)

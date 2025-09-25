@@ -105,6 +105,32 @@ class TestCore(unittest.TestCase):
         from backgammon.cli.app import main
         self.assertTrue(callable(main))
 
+    def test_board_owner_and_count(self):
+        board = Board()
+        board.setup_initial()
+        self.assertEqual(board.owner_at(23), Board.WHITE)
+        self.assertEqual(board.count_at(23), 2)
+        self.assertEqual(board.owner_at(0), Board.BLACK)
+        self.assertEqual(board.count_at(0), 2)
+        self.assertEqual(board.owner_at(10), 0)
+        self.assertEqual(board.count_at(10), 0)
+
+    def test_board_is_blocked_rules(self):
+        board = Board()
+        board.setup_initial()
+        # Para WHITE, los puntos negros con 2+ fichas bloquean
+        self.assertTrue(board.is_blocked(11, Board.WHITE))
+        self.assertFalse(board.is_blocked(12, Board.WHITE))
+        # Para BLACK, los puntos blancos con 2+ fichas bloquean
+        self.assertTrue(board.is_blocked(12, Board.BLACK))
+        self.assertFalse(board.is_blocked(11, Board.BLACK))
+
+    def test_board_dest_from_direction(self):
+        board = Board()
+        # WHITE se mueve hacia índices menores
+        self.assertEqual(board.dest_from(12, 3, Board.WHITE), 9)
+        # BLACK se mueve hacia índices mayores
+        self.assertEqual(board.dest_from(11, 6, Board.BLACK), 17)
 
 
 if __name__ == "__main__":
