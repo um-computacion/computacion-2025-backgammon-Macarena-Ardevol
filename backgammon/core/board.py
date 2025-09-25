@@ -91,3 +91,40 @@ class Board:
         if not (0 <= dest < self.NUM_POINTS):
             raise ValueError("Destino fuera del tablero")
         return dest
+
+    def can_move(self, origin: int, pip: int, mover_color: int) -> bool:
+        """
+        Devuelve True si el movimiento (origin, pip, color) es legal en esta etapa:
+        - La ficha en origin pertenece a mover_color.
+        - El destino cae dentro del tablero.
+        - El destino no está bloqueado (2+ fichas rivales).
+        - Permitido aterrizar en vacío o propio (no implementamos 'hit' aún).
+        """
+        # Validaciones básicas y destino
+        try:
+            dest = self.dest_from(origin, pip, mover_color)
+        except Exception:
+            return False
+
+        if self.owner_at(origin) != mover_color or self.count_at(origin) == 0:
+            return False
+
+        if self.is_blocked(dest, mover_color):
+            return False
+
+        owner_dest = self.owner_at(dest)
+        return owner_dest in (0, mover_color)  # vacío o propio
+
+    def move(self, origin: int, pip: int, mover_color: int) -> int:
+        """
+        Aplica el movimiento; lanza ValueError si no es válido.
+        Retorna el índice de destino.
+        """
+        if not self.can_move(origin, pip, mover_color):
+            raise ValueError("Movimiento inválido para el estado actual del tablero")
+
+        dest = self.dest_from(origin, pip, mover_color)
+        # Quitar una ficha del origen y sumar en destino (según el signo del color)
+        self.__points__[origin] -= mover_color
+        self.__points__[dest] += mover_color
+        return dest

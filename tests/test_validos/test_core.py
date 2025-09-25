@@ -132,6 +132,34 @@ class TestCore(unittest.TestCase):
         # BLACK se mueve hacia índices mayores
         self.assertEqual(board.dest_from(11, 6, Board.BLACK), 17)
 
+    def test_board_can_move_en_vacio_y_propio(self):
+        board = Board()
+        board.setup_initial()
+        # WHITE: 7 -> 6 (vacío), 7 -> 5 (propio)
+        self.assertTrue(board.can_move(7, 1, Board.WHITE))
+        self.assertTrue(board.can_move(7, 2, Board.WHITE))
+        # BLACK: 16 -> 17 (vacío), 16 -> 18 (propio)
+        self.assertTrue(board.can_move(16, 1, Board.BLACK))
+        self.assertTrue(board.can_move(16, 2, Board.BLACK))
+
+    def test_board_can_move_bloqueado_devuelve_false(self):
+        board = Board()
+        board.setup_initial()
+        # Destinos con 5 fichas rivales están bloqueados
+        self.assertFalse(board.can_move(12, 1, Board.WHITE))  # a 11 (negro x5)
+        self.assertFalse(board.can_move(11, 1, Board.BLACK))  # a 12 (blanco x5)
+
+    def test_board_move_aplica_cambios(self):
+        board = Board()
+        board.setup_initial()
+        # WHITE 7 -> 6
+        self.assertEqual(board.get_point(7), 3)
+        self.assertEqual(board.get_point(6), 0)
+        dest = board.move(7, 1, Board.WHITE)
+        self.assertEqual(dest, 6)
+        self.assertEqual(board.get_point(7), 2)
+        self.assertEqual(board.get_point(6), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

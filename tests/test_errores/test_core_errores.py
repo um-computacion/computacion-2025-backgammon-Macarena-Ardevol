@@ -93,3 +93,16 @@ class TestErroresCore(unittest.TestCase):
         # BLACK desde 22 con pip 3 sale por encima de 23
         with self.assertRaises(ValueError):
             b.dest_from(22, 3, Board.BLACK)
+
+    def test_board_move_invalido_levanta(self):
+        b = Board()
+        b.setup_initial()
+        # Movimiento bloqueado: WHITE 12 -> 11 (negro x5)
+        with self.assertRaises(ValueError):
+            b.move(12, 1, Board.WHITE)
+
+    def test_board_can_move_origen_sin_fichas(self):
+        b = Board()
+        b.setup_initial()
+        # Punto vacío, no se puede mover
+        self.assertFalse(b.can_move(10, 1, Board.WHITE))
