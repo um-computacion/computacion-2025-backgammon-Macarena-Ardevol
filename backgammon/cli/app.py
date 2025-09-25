@@ -27,9 +27,20 @@ def main(argv=None):
         game.setup_board()
         print(format_board_summary(game.board()))
 
-    if args.roll:
-        a_str, b_str = args.roll.split(",")
-        a, b = int(a_str), int(b_str)
+    # Validación estricta de --roll (maneja "", formatos y no numéricos)
+    if args.roll is not None:
+        value = args.roll  # puede ser cadena vacía
+        parts = value.split(",")
+        if len(parts) != 2 or parts[0] == "" or parts[1] == "":
+            raise ValueError("--roll debe tener formato a,b (enteros)")
+        a_str, b_str = parts
+        try:
+            a, b = int(a_str), int(b_str)
+        except ValueError:
+            raise ValueError("--roll debe tener formato a,b (enteros)") from None
+        # opcional pero útil: limitar a 1..6
+        if not (1 <= a <= 6 and 1 <= b <= 6):
+            raise ValueError("Valores de --roll fuera de 1..6")
         game.start_turn((a, b))
     else:
         game.start_turn()
