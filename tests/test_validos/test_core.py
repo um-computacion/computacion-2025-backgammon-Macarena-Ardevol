@@ -160,6 +160,43 @@ class TestCore(unittest.TestCase):
         self.assertEqual(board.get_point(7), 2)
         self.assertEqual(board.get_point(6), 1)
 
+    def test_game_can_play_move_y_apply_move_consumen_pip(self):
+        game = BackgammonGame()
+        game.add_player("Alice", "white")
+        game.add_player("Bob", "black")
+        game.setup_board()
+        game.start_turn((3, 4))
+        # WHITE: 7 -> 4 usando pip 3 (vacío)
+        self.assertTrue(game.can_play_move(7, 3))
+        pips_antes = game.pips()
+        dest = game.apply_move(7, 3)
+        self.assertEqual(dest, 4)
+        # tablero cambia
+        self.assertEqual(game.board().get_point(7), 2)
+        self.assertEqual(game.board().get_point(4), 1)
+        # se consumió el pip 3
+        self.assertEqual(len(game.pips()), len(pips_antes) - 1)
+        self.assertNotIn(3, game.pips())
+
+    def test_game_apply_move_pip_inexistente_levanta(self):
+        game = BackgammonGame()
+        game.add_player("Alice", "white")
+        game.add_player("Bob", "black")
+        game.setup_board()
+        game.start_turn((3, 4))
+        with self.assertRaises(ValueError):
+            game.apply_move(7, 6)  # 6 no está entre los pips del turno
+
+    def test_game_apply_move_bloqueado_levanta(self):
+        game = BackgammonGame()
+        game.add_player("Alice", "white")
+        game.add_player("Bob", "black")
+        game.setup_board()
+        game.start_turn((1, 2))
+        # WHITE 12 -> 11 está bloqueado por negras (5 en 11)
+        with self.assertRaises(ValueError):
+            game.apply_move(12, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

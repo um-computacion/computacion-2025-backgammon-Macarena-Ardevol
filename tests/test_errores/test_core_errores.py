@@ -106,3 +106,10 @@ class TestErroresCore(unittest.TestCase):
         b.setup_initial()
         # Punto vacío, no se puede mover
         self.assertFalse(b.can_move(10, 1, Board.WHITE))
+
+    def test_game_can_play_move_sin_turno_devuelve_false(self):
+        g = BackgammonGame()
+        g.add_player("A", "white"); g.add_player("B", "black")
+        g.setup_board()
+        # Sin start_turn no hay pips disponibles
+        self.assertFalse(g.can_play_move(7, 3))
