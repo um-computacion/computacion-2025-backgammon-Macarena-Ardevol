@@ -197,6 +197,17 @@ class TestCore(unittest.TestCase):
         with self.assertRaises(ValueError):
             game.apply_move(12, 1)
 
+    def test_cli_move_aplica_y_muestra(self):
+        from backgammon.cli.app import main
+        import io, contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            main(["--setup", "--roll", "3,4", "--move", "7,3"])
+        out = buf.getvalue()
+        self.assertIn("Move: 7->4", out)
+        self.assertIn("Dados: (3, 4)", out)
+        self.assertIn("Pips: (4,)", out)  
+
 
 if __name__ == "__main__":
     unittest.main()

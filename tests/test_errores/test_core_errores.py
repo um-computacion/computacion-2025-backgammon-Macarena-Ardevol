@@ -113,3 +113,14 @@ class TestErroresCore(unittest.TestCase):
         g.setup_board()
         # Sin start_turn no hay pips disponibles
         self.assertFalse(g.can_play_move(7, 3))
+
+    def test_cli_move_formato_invalido(self):
+        from backgammon.cli.app import main as cli_main
+        with self.assertRaises(ValueError):
+            cli_main(["--setup", "--roll", "3,4", "--move", "7;3"])  # mal separador
+
+    def test_cli_move_bloqueado_levanta(self):
+        from backgammon.cli.app import main as cli_main
+        # WHITE 12->11 está bloqueado al inicio (negro x5 en 11)
+        with self.assertRaises(ValueError):
+            cli_main(["--setup", "--roll", "1,2", "--move", "12,1"])
