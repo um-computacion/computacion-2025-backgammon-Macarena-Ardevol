@@ -12,11 +12,24 @@ def format_board_summary(board) -> str:
         lines.append(f"{label} {idxs} -> {vals}")
     return "\n".join(lines)
 
+def format_legal_moves(moves: list[tuple[int, int, int]]) -> str:
+    if not moves:
+        return "Legal moves: ninguno"
+    # agrupar por pip
+    by_pip: dict[int, list[str]] = {}
+    for origin, pip, dest in moves:
+        by_pip.setdefault(pip, []).append(f"{origin}->{dest}")
+    lines = ["Legal moves:"]
+    for pip in sorted(by_pip.keys()):
+        lines.append(f"  pip {pip}: " + ", ".join(sorted(by_pip[pip])))
+    return "\n".join(lines)
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="backgammon-cli")
     parser.add_argument("--setup", action="store_true", help="Inicializa el tablero estándar")
     parser.add_argument("--roll", type=str, help="Usa tirada fija a,b (ej: 3,4)")
     parser.add_argument("--move", type=str, help="Aplica un movimiento origen,pip (ej: 7,3)")
+    parser.add_argument("--list-moves", action="store_true", help="Muestra movimientos legales con los pips actuales")
     args = parser.parse_args(argv)
 
     game = BackgammonGame()
@@ -27,7 +40,7 @@ def main(argv=None):
         game.setup_board()
         print(format_board_summary(game.board()))
 
-    # Validación estricta de --roll (incluye vacío/no numérico/rango)
+    # Validación estricta de --roll
     if args.roll is not None:
         value = args.roll
         parts = value.split(",")
@@ -44,7 +57,11 @@ def main(argv=None):
     else:
         game.start_turn()
 
-# aplicar movimiento desde CLI
+    # listar movimientos legales
+    if args.__dict__.get("list_moves", False):
+        print(format_legal_moves(game.legal_moves()))
+
+    # Aplicar movimiento desde CLI 
     if args.move is not None:
         value = args.move
         parts = value.split(",")

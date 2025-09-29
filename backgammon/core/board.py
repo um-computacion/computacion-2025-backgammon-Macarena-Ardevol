@@ -42,7 +42,7 @@ class Board:
             return -sum(v for v in self.__points__ if v < 0)
         raise ValueError("Color inválido")
 
-    # --- Helpers de movimiento y consulta ---
+    # Helpers de movimiento y consulta 
 
     def _validate_index(self, index: int) -> None:
         if not (0 <= index < self.NUM_POINTS):
@@ -93,38 +93,51 @@ class Board:
         return dest
 
     def can_move(self, origin: int, pip: int, mover_color: int) -> bool:
-        """
-        Devuelve True si el movimiento (origin, pip, color) es legal en esta etapa:
-        - La ficha en origin pertenece a mover_color.
-        - El destino cae dentro del tablero.
-        - El destino no está bloqueado (2+ fichas rivales).
-        - Permitido aterrizar en vacío o propio (no implementamos 'hit' aún).
-        """
-        # Validaciones básicas y destino
+        """Reglas básicas: propia en origen, destino en tablero, no bloqueado, vacío o propio."""
         try:
             dest = self.dest_from(origin, pip, mover_color)
         except Exception:
             return False
-
         if self.owner_at(origin) != mover_color or self.count_at(origin) == 0:
             return False
-
         if self.is_blocked(dest, mover_color):
             return False
-
         owner_dest = self.owner_at(dest)
-        return owner_dest in (0, mover_color)  # vacío o propio
+        return owner_dest in (0, mover_color)
 
     def move(self, origin: int, pip: int, mover_color: int) -> int:
-        """
-        Aplica el movimiento; lanza ValueError si no es válido.
-        Retorna el índice de destino.
-        """
+        """Aplica el movimiento; lanza ValueError si no es válido. Retorna el destino."""
         if not self.can_move(origin, pip, mover_color):
             raise ValueError("Movimiento inválido para el estado actual del tablero")
-
         dest = self.dest_from(origin, pip, mover_color)
-        # Quitar una ficha del origen y sumar en destino (según el signo del color)
         self.__points__[origin] -= mover_color
         self.__points__[dest] += mover_color
         return dest
+
+    # listado de movimientos posibles (sin 'hit' ni 'bar')
+
+    def legal_moves(self, color: int, pips: list[int]) -> list[tuple[int, int, int]]:
+        """
+        Devuelve una lista de tuplas (origin, pip, dest) posibles con los pips dados.
+        No duplica el mismo (origin,pip,dest) si hay pips repetidos.
+        """
+        self._validate_color(color)
+        moves: list[tuple[int, int, int]] = []
+        unique_pips = sorted(set(pips))
+        for origin in range(self.NUM_POINTS):
+            if self.owner_at(origin) != color or self.count_at(origin) == 0:
+                continue
+            for pip in unique_pips:
+                try:
+                    dest = self.dest_from(origin, pip, color)
+                except ValueError:
+                    continue
+                if not self.is_blocked(dest, color):
+                    owner_dest = self.owner_at(dest)
+                    if owner_dest in (0, color):
+                        moves.append((origin, pip, dest))
+        return moves
+
+    def has_any_move(self, color: int, pips: list[int]) -> bool:
+        """True si existe al menos un movimiento legal con esos pips."""
+        return len(self.legal_moves(color, pips)) > 0

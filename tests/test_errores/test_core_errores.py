@@ -124,3 +124,18 @@ class TestErroresCore(unittest.TestCase):
         # WHITE 12->11 está bloqueado al inicio (negro x5 en 11)
         with self.assertRaises(ValueError):
             cli_main(["--setup", "--roll", "1,2", "--move", "12,1"])
+
+    def test_game_has_any_move_false_si_sin_pips(self):
+        g = BackgammonGame()
+        g.add_player("A", "white"); g.add_player("B", "black")
+        g.setup_board()
+        g.start_turn((3, 4))
+    # Consumir ambos pips con jugadas legales:
+    # WHITE: 7->4 usando 3
+        g.apply_move(7, 3)
+    # WHITE: 5->1 usando 4 (1 está vacío al inicio)
+        g.apply_move(5, 4)
+    # Ya no quedan pips
+        self.assertEqual(g.pips(), ())
+    # Sin pips, no debería haber movimientos disponibles
+        self.assertFalse(g.has_any_move())

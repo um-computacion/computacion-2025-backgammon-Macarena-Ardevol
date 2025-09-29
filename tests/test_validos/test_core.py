@@ -206,7 +206,28 @@ class TestCore(unittest.TestCase):
         out = buf.getvalue()
         self.assertIn("Move: 7->4", out)
         self.assertIn("Dados: (3, 4)", out)
-        self.assertIn("Pips: (4,)", out)  
+        self.assertIn("Pips: (4,)", out)  # quedó solo el pip 4
+
+    def test_game_legal_moves_incluye_al_menos_un_par_esperado(self):
+        game = BackgammonGame()
+        game.add_player("Alice", "white")
+        game.add_player("Bob", "black")
+        game.setup_board()
+        game.start_turn((3, 4))
+        moves = game.legal_moves()
+        self.assertTrue(any(m == (7, 3, 4) for m in moves))
+        self.assertTrue(any(m == (7, 4, 3) for m in moves))
+
+    def test_cli_list_moves_muestra_posibles(self):
+        from backgammon.cli.app import main
+        import io, contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            main(["--setup", "--roll", "3,4", "--list-moves"])
+        out = buf.getvalue()
+        self.assertIn("Legal moves:", out)
+        self.assertIn("pip 3", out)
+        self.assertIn("7->4", out)
 
 
 if __name__ == "__main__":

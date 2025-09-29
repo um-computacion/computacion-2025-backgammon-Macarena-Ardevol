@@ -2,6 +2,7 @@ from backgammon.core.board import Board
 from backgammon.core.player import Player
 from backgammon.core.dice import Dice
 
+
 class BackgammonGame:
     """Clase principal del juego Backgammon."""
     def __init__(self):
@@ -13,7 +14,7 @@ class BackgammonGame:
         self.__pips__ = tuple()
         self.__pips_left__ = []
 
-    # --- gestión de jugadores / turno ---
+    # gestión de jugadores / turno 
     def add_player(self, name: str, color: str) -> None:
         self.__players__.append(Player(name, color))
 
@@ -29,14 +30,14 @@ class BackgammonGame:
         if self.__players__:
             self.__current_player_index__ = (self.__current_player_index__ + 1) % len(self.__players__)
 
-    # acceso a objetos internos (solo lectura) 
+    # acceso a objetos internos (solo lectura)
     def board(self):
         return self.__board__
 
     def players(self):
         return tuple(self.__players__)
 
-    # configuración inicial
+    # configuración inicial 
     def setup_board(self) -> None:
         self.__board__.setup_initial()
 
@@ -57,7 +58,7 @@ class BackgammonGame:
         """Pips restantes por jugar en el turno actual."""
         return tuple(self.__pips_left__)
 
-    # helpers de reglas
+    # helpers de reglas 
     def _color_sign(self) -> int:
         """WHITE -> +1, BLACK -> -1 en términos del Board."""
         cp = self.current_player()
@@ -70,7 +71,7 @@ class BackgammonGame:
             return Board.BLACK
         raise ValueError("Color de jugador inválido")
 
-    # validar / aplicar movimientos
+    # validar / aplicar movimientos 
     def can_play_move(self, origin: int, pip: int) -> bool:
         """True si el pip está disponible y el tablero permite el movimiento."""
         if pip not in self.__pips_left__:
@@ -92,3 +93,13 @@ class BackgammonGame:
         dest = self.__board__.move(origin, pip, color)
         self.__pips_left__.remove(pip)
         return dest
+
+    # nuevos: listado de movimientos posibles 
+    def legal_moves(self) -> list[tuple[int, int, int]]:
+        """Lista (origin, pip, dest) posibles para el jugador actual con los pips restantes."""
+        color = self._color_sign()
+        return self.__board__.legal_moves(color, list(self.__pips_left__))
+
+    def has_any_move(self) -> bool:
+        """True si el jugador actual puede mover con los pips restantes."""
+        return len(self.legal_moves()) > 0
