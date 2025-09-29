@@ -36,8 +36,8 @@ Formato: Keep a Changelog.
 ### Added
 - Tests de errores: índices fuera de rango en `Board`; formato inválido en `CLI --roll`.
 - Documentación: README reordenado; JUSTIFICACION completada (atributos, excepciones, testing, SOLID).
+- **Documentación: ejemplo de `--move` en README.**
 
 ### Changed
 - CLI: validación estricta de `--roll` (vacío/incorrecto → `ValueError`).
 - Ajustes menores de redacción en docs.
-

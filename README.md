@@ -50,7 +50,7 @@ python -m pip install --upgrade pip
 pip install -r backgammon/requirements.txt
 ```
 
-## Ejecutrar en modo CLI 
+## Ejecutar en modo CLI 
 **Inicializar el tablero estándar y usar una tirada fija:**
 ```
 python -m backgammon.cli --setup --roll 3,4
@@ -61,6 +61,13 @@ Nota: --roll a,b acepta enteros del 1 al 6. Formatos inválidos o valores vacío
 ```
 python -m backgammon.cli 
 ```
+
+**Tirar y mover en un paso**
+```
+python -m backgammon.cli --setup --roll 3,4 --move 7,3 
+```
+
+*Inicializa el tablero, fija la tirada (3,4) y mueve una ficha blanca de la posición 7 a la 4 (consume el pip 3).*
 
 
 ## Ejecutar en modo Pygame (pendiente)
