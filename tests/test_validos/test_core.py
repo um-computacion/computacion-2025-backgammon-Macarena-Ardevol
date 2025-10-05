@@ -229,6 +229,20 @@ class TestCore(unittest.TestCase):
         self.assertIn("pip 3", out)
         self.assertIn("7->4", out)
 
+    def test_game_end_turn_rota_si_no_quedan_pips(self):
+        game = BackgammonGame()
+        game.add_player("Alice", "white")
+        game.add_player("Bob", "black")
+        game.setup_board()
+        game.start_turn((3, 4))
+        # Consumir ambos pips legalmente: 7->4 (3) y 5->1 (4)
+        game.apply_move(7, 3)
+        game.apply_move(5, 4)
+        self.assertTrue(game.is_turn_over())
+        self.assertEqual(game.current_player().__color__, "white")
+        game.end_turn()
+        self.assertEqual(game.current_player().__color__, "black")
+
 
 if __name__ == "__main__":
     unittest.main()
