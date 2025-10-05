@@ -13,6 +13,7 @@ class BackgammonGame:
         self.__last_roll__ = None
         self.__pips__ = tuple()
         self.__pips_left__ = []
+        self.__turn_moves__ = []  # [(origin, pip, dest)] solo del turno actual
 
     # gestión de jugadores / turno 
     def add_player(self, name: str, color: str) -> None:
@@ -30,7 +31,7 @@ class BackgammonGame:
         if self.__players__:
             self.__current_player_index__ = (self.__current_player_index__ + 1) % len(self.__players__)
 
-    # acceso a objetos internos (solo lectura) 
+    # acceso a objetos internos (solo lectura)
     def board(self):
         return self.__board__
 
@@ -49,6 +50,7 @@ class BackgammonGame:
         base = (a, a, a, a) if a == b else (a, b)
         self.__pips__ = base
         self.__pips_left__ = list(base)
+        self.__turn_moves__.clear()
         return self.__last_roll__
 
     def last_roll(self) -> tuple[int, int] | None:
@@ -92,9 +94,10 @@ class BackgammonGame:
         color = self._color_sign()
         dest = self.__board__.move(origin, pip, color)
         self.__pips_left__.remove(pip)
+        self.__turn_moves__.append((origin, pip, dest))
         return dest
 
-    # listado de movimientos posibles 
+    # listado de movimientos posibles
     def legal_moves(self) -> list[tuple[int, int, int]]:
         """Lista (origin, pip, dest) posibles para el jugador actual con los pips restantes."""
         color = self._color_sign()
@@ -104,7 +107,7 @@ class BackgammonGame:
         """True si el jugador actual puede mover con los pips restantes."""
         return len(self.legal_moves()) > 0
 
-    # cierre/rotación de turnos 
+    #  cierre/rotación de turnos
     def is_turn_over(self) -> bool:
         """True si no quedan pips por jugar en el turno actual."""
         return len(self.__pips_left__) == 0
@@ -120,6 +123,7 @@ class BackgammonGame:
         self.__last_roll__ = None
         self.__pips__ = tuple()
         self.__pips_left__.clear()
+        self.__turn_moves__.clear()
 
     def can_auto_end(self) -> bool:
         """True si hay pips restantes pero no existe ninguna jugada legal."""
@@ -144,3 +148,8 @@ class BackgammonGame:
         name = cp.get_name() if hasattr(cp, "get_name") else getattr(cp, "__name__", "?")
         color = cp.get_color() if hasattr(cp, "get_color") else getattr(cp, "__color__", "?")
         return f"{name} ({color})"
+
+    # historial del turno
+    def turn_history(self) -> list[tuple[int, int, int]]:
+        """Devuelve la lista [(origin, pip, dest)] aplicada en el turno actual."""
+        return list(self.__turn_moves__)

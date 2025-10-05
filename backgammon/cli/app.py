@@ -20,11 +20,18 @@ def format_legal_moves(moves: list[tuple[int, int, int]]) -> str:
         lines.append(f"  pip {pip}: " + ", ".join(sorted(by_pip[pip])))
     return "\n".join(lines)
 
+def format_history(hist: list[tuple[int, int, int]]) -> str:
+    if not hist:
+        return "History: vacío"
+    lines = ["History:"]
+    for origin, pip, dest in hist:
+        lines.append(f"  {origin}->{dest} (pip {pip})")
+    return "\n".join(lines)
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="backgammon-cli")
     parser.add_argument("--setup", action="store_true", help="Inicializa el tablero estándar")
     parser.add_argument("--roll", type=str, help="Usa tirada fija a,b (ej: 3,4)")
-    # Ahora acepta múltiples --move y las ejecuta en orden
     parser.add_argument(
         "--move",
         action="append",
@@ -33,6 +40,8 @@ def main(argv=None):
     parser.add_argument("--list-moves", action="store_true", help="Muestra movimientos legales con los pips actuales")
     parser.add_argument("--end-turn", action="store_true", help="Finaliza el turno si no quedan pips")
     parser.add_argument("--auto-end-turn", action="store_true", help="Cierra el turno si no hay jugadas legales con los pips")
+    parser.add_argument("--history", action="store_true", help="Muestra el historial de movimientos del turno")
+    parser.add_argument("--status", action="store_true", help="Muestra el jugador actual nuevamente")
     args = parser.parse_args(argv)
 
     game = BackgammonGame()
@@ -90,6 +99,14 @@ def main(argv=None):
             print(f"Auto-end: turno cerrado. Turno ahora: {game.current_player_label()}")
         else:
             print("Auto-end: hay jugadas o no hay pips; no se cerró el turno.")
+
+    # Historial del turno
+    if args.history:
+        print(format_history(game.turn_history()))
+
+    # Status (impresión adicional del jugador actual)
+    if args.status:
+        print(f"Estado: {game.current_player_label()}")
 
     print(f"Dados: {game.last_roll()}")
     print(f"Pips: {game.pips()}")

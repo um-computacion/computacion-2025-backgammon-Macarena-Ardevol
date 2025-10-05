@@ -273,6 +273,27 @@ class TestCore(unittest.TestCase):
         # rotó de white a black
         self.assertEqual(game.current_player().__color__, "black")
 
+    def test_cli_history_muestra_movimientos(self):
+        from backgammon.cli.app import main
+        import io, contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            main(["--setup", "--roll", "3,4", "--move", "7,3", "--history"])
+        out = buf.getvalue()
+        self.assertIn("History:", out)
+        self.assertIn("7->4 (pip 3)", out)
+
+    def test_cli_status_refresca_estado(self):
+        from backgammon.cli.app import main
+        import io, contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            main(["--setup", "--roll", "3,4", "--status"])
+        out = buf.getvalue()
+        self.assertIn("Estado:", out)       # línea adicional de status
+        self.assertIn("Dados: (3, 4)", out) # la salida estándar sigue
+        self.assertIn("Pips: (3, 4)", out)
+
 
 if __name__ == "__main__":
     unittest.main()
