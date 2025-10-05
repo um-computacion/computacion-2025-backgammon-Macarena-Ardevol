@@ -14,7 +14,7 @@ class BackgammonGame:
         self.__pips__ = tuple()
         self.__pips_left__ = []
 
-    # gestión de jugadores / turno
+    # gestión de jugadores / turno 
     def add_player(self, name: str, color: str) -> None:
         self.__players__.append(Player(name, color))
 
@@ -30,14 +30,14 @@ class BackgammonGame:
         if self.__players__:
             self.__current_player_index__ = (self.__current_player_index__ + 1) % len(self.__players__)
 
-    # acceso a objetos internos (solo lectura)
+    # acceso a objetos internos (solo lectura) 
     def board(self):
         return self.__board__
 
     def players(self):
         return tuple(self.__players__)
 
-    # configuración inicial 
+    # configuración inicial
     def setup_board(self) -> None:
         self.__board__.setup_initial()
 
@@ -71,7 +71,7 @@ class BackgammonGame:
             return Board.BLACK
         raise ValueError("Color de jugador inválido")
 
-    #  validar / aplicar movimientos
+    # validar / aplicar movimientos 
     def can_play_move(self, origin: int, pip: int) -> bool:
         """True si el pip está disponible y el tablero permite el movimiento."""
         if pip not in self.__pips_left__:
@@ -120,6 +120,21 @@ class BackgammonGame:
         self.__last_roll__ = None
         self.__pips__ = tuple()
         self.__pips_left__.clear()
+
+    def can_auto_end(self) -> bool:
+        """True si hay pips restantes pero no existe ninguna jugada legal."""
+        return len(self.__pips_left__) > 0 and not self.has_any_move()
+
+    def auto_end_turn(self) -> bool:
+        """
+        Si no hay jugadas legales con los pips restantes, consume los pips y cierra el turno.
+        Retorna True si se cerró automáticamente, False en caso contrario.
+        """
+        if not self.can_auto_end():
+            return False
+        self.__pips_left__.clear()
+        self.end_turn()
+        return True
 
     def current_player_label(self) -> str:
         """Nombre y color del jugador actual (útil para CLI)."""

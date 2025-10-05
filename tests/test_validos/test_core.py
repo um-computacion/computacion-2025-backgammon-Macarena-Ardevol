@@ -243,6 +243,36 @@ class TestCore(unittest.TestCase):
         game.end_turn()
         self.assertEqual(game.current_player().__color__, "black")
 
+    def test_cli_end_turn_rotacion_y_pips_vacios(self):
+        from backgammon.cli.app import main
+        import io, contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            main(["--setup", "--roll", "3,4", "--move", "7,3", "--move", "5,4", "--end-turn"])
+        out = buf.getvalue()
+        self.assertIn("Turno ahora:", out)
+        self.assertIn("Pips: ()", out)
+
+    def test_game_auto_end_turn_bloqueado_rota(self):
+        # Crear situación sin jugadas legales para WHITE con (1,1)
+        game = BackgammonGame()
+        game.add_player("Alice", "white")
+        game.add_player("Bob", "black")
+        game.setup_board()
+        # Bloquear destinos WHITE con pip=1: 22, 11 (ya bloqueado), 6, 4
+        b = game.board()
+        b.set_point(22, -2)  # bloquear 23->22
+        # 11 ya está en -5 por setup_initial()
+        b.set_point(6, -2)   # bloquear 7->6
+        b.set_point(4, -2)   # bloquear 5->4
+        game.start_turn((1, 1))
+        self.assertTrue(game.can_auto_end())
+        ok = game.auto_end_turn()
+        self.assertTrue(ok)
+        self.assertEqual(game.pips(), ())
+        # rotó de white a black
+        self.assertEqual(game.current_player().__color__, "black")
+
 
 if __name__ == "__main__":
     unittest.main()

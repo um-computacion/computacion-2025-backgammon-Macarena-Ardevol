@@ -148,3 +148,9 @@ class TestErroresCore(unittest.TestCase):
         # Aún hay pips disponibles: debe fallar
         with self.assertRaises(ValueError):
             g.end_turn()
+
+    def test_cli_end_turn_con_pips_pendientes_levanta(self):
+        from backgammon.cli.app import main as cli_main
+        # Aún quedan pips -> ValueError
+        with self.assertRaises(ValueError):
+            cli_main(["--setup", "--roll", "3,4", "--end-turn"])
