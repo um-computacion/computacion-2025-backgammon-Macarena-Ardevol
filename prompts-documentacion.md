@@ -1,5 +1,6 @@
 ## Prompt para documentación de tests
 
+(1)
 Herramienta usada: IA - ChatGPT 
 Prompt utilizado: "Dame ejemplos concretos de la salida que aparece por consola cuando un test corre de manera correcta, cuando un test falla y cuando hay error en la ejecución"
 
@@ -49,3 +50,5 @@ La salida fue usada sin cambios.
 
 Archivo final que incorporó contenido generado por IA: 
 - README.md 
+
+----------------------------------------------------------------------------------------------------------
