@@ -16,3 +16,4 @@ class Dice:
             return False
         a, b = self.__last_roll__
         return a == b
+

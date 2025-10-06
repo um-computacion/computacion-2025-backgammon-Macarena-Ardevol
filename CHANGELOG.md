@@ -33,13 +33,16 @@ Formato: Keep a Changelog.
 - `NUM_POINTS` y validaciones de rango.
 
 ## [Unreleased]
+
 ### Added
 - Tests de errores: índices fuera de rango en `Board`; formato inválido en `CLI --roll`.
 - Documentación: README reordenado; JUSTIFICACION completada (atributos, excepciones, testing, SOLID).
 - Documentación: ejemplo de `--move` en README.
-- CLI: flag `--list-moves` y formato de salida.
+- CLI: flags `--list-moves`, `--end-turn`, `--auto-end-turn`, `--history`, `--status`.
+- Core: `Game.turn_history()` y `Game.auto_end_turn()`.
 
 ### Changed
 - CLI: validación estricta de `--roll` (vacío/incorrecto → `ValueError`).
+- CLI: soporte para múltiples `--move`.
 - Core: `Board.legal_moves()` y `Game.has_any_move()`.
 - Ajustes menores de redacción en docs.

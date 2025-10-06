@@ -69,6 +69,18 @@ python -m backgammon.cli --setup --roll 3,4 --move 7,3
 
 *Inicializa el tablero, fija la tirada (3,4) y mueve una ficha blanca de la posición 7 a la 4 (consume el pip 3).*
 
+**Finalizar turno (todos los pips consumidos)**
+python -m backgammon.cli --setup --roll 3,4 --move 7,3 --move 5,4 --end-turn
+
+**Auto-cerrar turno si no hay jugadas legales**
+python -m backgammon.cli --setup --roll 1,1 --auto-end-turn
+
+**Ver historial del turno**
+python -m backgammon.cli --setup --roll 3,4 --move 7,3 --history
+
+**Mostrar estado (jugador actual)**
+python -m backgammon.cli --status
+
 
 ## Ejecutar en modo Pygame (pendiente)
 

@@ -13,6 +13,7 @@ class BackgammonGame:
         self.__last_roll__ = None
         self.__pips__ = tuple()
         self.__pips_left__ = []
+        self.__turn_moves__ = []  # [(origin, pip, dest)] solo del turno actual
 
     # gestión de jugadores / turno 
     def add_player(self, name: str, color: str) -> None:
@@ -37,11 +38,11 @@ class BackgammonGame:
     def players(self):
         return tuple(self.__players__)
 
-    # configuración inicial 
+    # configuración inicial
     def setup_board(self) -> None:
         self.__board__.setup_initial()
 
-    # dados / pips
+    # dados / pips 
     def start_turn(self, roll: tuple[int, int] | None = None) -> tuple[int, int]:
         """Inicia el turno tirando dados (o usando un roll fijo para test)."""
         self.__last_roll__ = roll if roll is not None else self.__dice__.roll()
@@ -49,6 +50,7 @@ class BackgammonGame:
         base = (a, a, a, a) if a == b else (a, b)
         self.__pips__ = base
         self.__pips_left__ = list(base)
+        self.__turn_moves__.clear()
         return self.__last_roll__
 
     def last_roll(self) -> tuple[int, int] | None:
@@ -92,9 +94,10 @@ class BackgammonGame:
         color = self._color_sign()
         dest = self.__board__.move(origin, pip, color)
         self.__pips_left__.remove(pip)
+        self.__turn_moves__.append((origin, pip, dest))
         return dest
 
-    # nuevos: listado de movimientos posibles 
+    # listado de movimientos posibles
     def legal_moves(self) -> list[tuple[int, int, int]]:
         """Lista (origin, pip, dest) posibles para el jugador actual con los pips restantes."""
         color = self._color_sign()
@@ -103,3 +106,50 @@ class BackgammonGame:
     def has_any_move(self) -> bool:
         """True si el jugador actual puede mover con los pips restantes."""
         return len(self.legal_moves()) > 0
+
+    #  cierre/rotación de turnos
+    def is_turn_over(self) -> bool:
+        """True si no quedan pips por jugar en el turno actual."""
+        return len(self.__pips_left__) == 0
+
+    def end_turn(self) -> None:
+        """
+        Finaliza el turno solo si no quedan pips. Rota al siguiente jugador
+        y limpia el estado de tirada.
+        """
+        if not self.is_turn_over():
+            raise ValueError("Aún quedan pips por jugar")
+        self.next_turn()
+        self.__last_roll__ = None
+        self.__pips__ = tuple()
+        self.__pips_left__.clear()
+        self.__turn_moves__.clear()
+
+    def can_auto_end(self) -> bool:
+        """True si hay pips restantes pero no existe ninguna jugada legal."""
+        return len(self.__pips_left__) > 0 and not self.has_any_move()
+
+    def auto_end_turn(self) -> bool:
+        """
+        Si no hay jugadas legales con los pips restantes, consume los pips y cierra el turno.
+        Retorna True si se cerró automáticamente, False en caso contrario.
+        """
+        if not self.can_auto_end():
+            return False
+        self.__pips_left__.clear()
+        self.end_turn()
+        return True
+
+    def current_player_label(self) -> str:
+        """Nombre y color del jugador actual (útil para CLI)."""
+        cp = self.current_player()
+        if cp is None:
+            return "N/A"
+        name = cp.get_name() if hasattr(cp, "get_name") else getattr(cp, "__name__", "?")
+        color = cp.get_color() if hasattr(cp, "get_color") else getattr(cp, "__color__", "?")
+        return f"{name} ({color})"
+
+    # historial del turno
+    def turn_history(self) -> list[tuple[int, int, int]]:
+        """Devuelve la lista [(origin, pip, dest)] aplicada en el turno actual."""
+        return list(self.__turn_moves__)

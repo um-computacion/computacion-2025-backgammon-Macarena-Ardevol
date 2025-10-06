@@ -139,3 +139,18 @@ class TestErroresCore(unittest.TestCase):
         self.assertEqual(g.pips(), ())
     # Sin pips, no debería haber movimientos disponibles
         self.assertFalse(g.has_any_move())
+
+    def test_game_end_turn_con_pips_pendientes_levanta(self):
+        g = BackgammonGame()
+        g.add_player("A", "white"); g.add_player("B", "black")
+        g.setup_board()
+        g.start_turn((3, 4))
+        # Aún hay pips disponibles: debe fallar
+        with self.assertRaises(ValueError):
+            g.end_turn()
+
+    def test_cli_end_turn_con_pips_pendientes_levanta(self):
+        from backgammon.cli.app import main as cli_main
+        # Aún quedan pips -> ValueError
+        with self.assertRaises(ValueError):
+            cli_main(["--setup", "--roll", "3,4", "--end-turn"])
