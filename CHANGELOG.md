@@ -40,7 +40,8 @@ Formato: Keep a Changelog.
 - Documentación: ejemplo de `--move` en README.
 - CLI: flags `--list-moves`, `--end-turn`, `--auto-end-turn`, `--history`, `--status`.
 - Core: `Game.turn_history()` y `Game.auto_end_turn()`.
-- Pygame UI mínima (python -m backgammon.pygame_ui): ventana, 24 puntos y totales.
+- Pygame UI mínima (`python -m backgammon.pygame_ui`): ventana, 24 puntos y totales.
+- Pygame UI: **hover** para info, **selección por click** y barra de estado.
 
 ### Changed
 - CLI: validación estricta de `--roll` (vacío/incorrecto → `ValueError`).

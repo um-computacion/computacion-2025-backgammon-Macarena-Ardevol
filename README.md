@@ -98,11 +98,16 @@ pip install pygame
 Ejecutar la UI:
 python -m backgammon.pygame_ui
 
-## Ejecutar en modo Pygame (pendiente)
+## Interfaz Pygame (base mínima)
+> Requiere instalación local de Pygame (no se incluye en CI).
 
-Esta sección se completará cuando se integre la UI de Pygame.
-Se documentarán requisitos específicos y el comando de ejecución correspondiente.
+**Instalar localmente:**
+pip install pygame
 
+**Ejecutar la UI:**
+python -m backgammon.pygame_ui
+
+En la UI mínima podés pasar el mouse para ver información del punto y hacer click para seleccionarlo.
 
 ## ¿Cómo correr los tests? 
 
