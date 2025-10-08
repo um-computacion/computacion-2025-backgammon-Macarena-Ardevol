@@ -109,6 +109,7 @@ python -m backgammon.pygame_ui
 
 En la UI mínima podés pasar el mouse para ver información del punto y hacer click para seleccionarlo.
 Atajos: H (ayuda), ESC/Q (salir). Se muestran índices 0..23 y FPS.
+En la UI: click ORIGEN a DESTINO para simular un movimiento según el color actual (T alterna White/Black). U: deshacer, R: reset.
 
 ## ¿Cómo correr los tests? 
 
