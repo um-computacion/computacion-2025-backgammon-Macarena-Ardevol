@@ -7,6 +7,8 @@ def main():
         return
 
     from backgammon.core.board import Board
+    import os, time
+    from pathlib import Path
 
     # --- Config ---
     W, H = 800, 600
@@ -21,14 +23,16 @@ def main():
     TXT = (20, 20, 20)
     HILIGHT = (240, 200, 60)   # hover
     SELECT = (120, 200, 120)   # seleccionado
-    LEGAL = (60, 190, 140)     # destinos legales
+    LEGAL = (60, 190, 140)     # destinos legales (borde/badge)
     OUTLINE = (30, 30, 30)
 
     CHECKER_WHITE = (250, 250, 250)
     CHECKER_BLACK = (30, 30, 30)
     CHECKER_EDGE  = (10, 10, 10)
-    R = 10  # radio de ficha dibujada
-    GAP = 2 # gap vertical entre fichas
+    R = 10   # radio de ficha
+    GAP = 2  # gap vertical entre fichas
+
+    BADGE_R = 10  # radio badge de pip
 
     # Área del tablero (izquierda); panel a la derecha
     BOARD_LEFT = MARGIN
@@ -47,16 +51,22 @@ def main():
         return [(x0, H - MARGIN), (x1, H - MARGIN),
                 ((x0 + x1) / 2, H - MARGIN - TRI_H)]
 
+    def tri_center(idx, col_w):
+        """Centro visual para dibujar líneas/badges por punto."""
+        cx = BOARD_LEFT + (idx % 12) * col_w + col_w / 2
+        if idx <= 11:
+            cy = MARGIN + TRI_H / 2
+        else:
+            cy = H - MARGIN - TRI_H / 2
+        return (int(cx), int(cy))
+
     def hover_index(mx, my, col_w):
-        # Solo si el mouse está dentro del ancho del tablero
         if not (BOARD_LEFT <= mx <= BOARD_RIGHT):
             return None
-        # Banda superior (0..11)
         if MARGIN <= my <= MARGIN + TRI_H:
             i = int((mx - BOARD_LEFT) // col_w)
             if 0 <= i < 12:
                 return i
-        # Banda inferior (12..23)
         if (H - MARGIN - TRI_H) <= my <= (H - MARGIN):
             i = int((mx - BOARD_LEFT) // col_w)
             if 0 <= i < 12:
@@ -104,6 +114,7 @@ def main():
         clock = pygame.time.Clock()
         font = pygame.font.SysFont(None, 24)
         font_small = pygame.font.SysFont(None, 16)
+        font_badge = pygame.font.SysFont(None, 14)
 
         board = Board()
         board.setup_initial()
@@ -118,6 +129,7 @@ def main():
         current_color = Board.WHITE
         history_snaps = []
         legal_dests = []  # lista de (dest, pip) para el origen seleccionado
+        last_move = None  # (origin, dest, color, pip)
 
         running = True
         while running:
@@ -144,13 +156,13 @@ def main():
                     elif event.key == pygame.K_t:
                         current_color = Board.BLACK if current_color == Board.WHITE else Board.WHITE
                         message = f"Color actual: {owner_label(current_color)}"
-                        # recomputar legales si hay origen
                         legal_dests = compute_legal_dests(board, origin_idx, current_color) if origin_idx is not None else []
                     elif event.key == pygame.K_r:
                         board.setup_initial()
                         origin_idx = selected_idx = None
                         history_snaps.clear()
                         legal_dests = []
+                        last_move = None
                         message = "Tablero reseteado"
                     elif event.key == pygame.K_u:
                         if history_snaps:
@@ -158,9 +170,16 @@ def main():
                             restore_points(board, snap)
                             origin_idx = selected_idx = None
                             legal_dests = []
+                            last_move = None
                             message = "Última jugada deshecha"
                         else:
                             message = "No hay jugadas para deshacer"
+                    elif event.key == pygame.K_s:
+                        # Guardar captura
+                        Path("screens").mkdir(parents=True, exist_ok=True)
+                        fn = f"screens/snap-{time.strftime('%Y%m%d-%H%M%S')}.png"
+                        pygame.image.save(screen, fn)
+                        message = f"Captura guardada: {fn}"
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     if idx_hover is None:
                         selected_idx = None
@@ -186,21 +205,26 @@ def main():
                                 if not legal_dests:
                                     message += " — sin destinos legales"
                     else:
+                        # Bloqueo duro: solo permitimos clic en un destino de legal_dests
+                        legal_set = {d for (d, _) in legal_dests}
+                        if not legal_dests or idx_hover not in legal_set:
+                            message = f"No permitido: {origin_idx}->{idx_hover}"
+                            continue
+
+                        # Obtener pip correspondiente de la lista legal
                         dest_idx = idx_hover
-                        pip = pip_from_move(origin_idx, dest_idx, current_color)
-                        # Validamos contra la lista de legales si existe
-                        if legal_dests and all(d != dest_idx for (d, _) in legal_dests):
-                            message = f"No permitido: {origin_idx}->{dest_idx}"
-                        else:
-                            if pip < 1 or pip > 6 or not board.can_move(origin_idx, pip, current_color):
-                                message = f"Movimiento bloqueado: {origin_idx}->{dest_idx} (pip {pip})"
-                            else:
-                                history_snaps.append(snapshot_points(board))
-                                real_dest = board.move(origin_idx, pip, current_color)
-                                message = f"Move: {origin_idx}->{real_dest} (pip {pip}, {owner_label(current_color)})"
-                                origin_idx = None
-                                selected_idx = None
-                                legal_dests = []
+                        pip = next((p for (d, p) in legal_dests if d == dest_idx), None)
+                        if pip is None:
+                            message = "Error interno: pip no encontrado"
+                            continue
+
+                        history_snaps.append(snapshot_points(board))
+                        real_dest = board.move(origin_idx, pip, current_color)
+                        last_move = (origin_idx, real_dest, current_color, pip)
+                        message = f"Move: {origin_idx}->{real_dest} (pip {pip}, {owner_label(current_color)})"
+                        origin_idx = None
+                        selected_idx = None
+                        legal_dests = []
 
             # Fondo
             screen.fill(BG)
@@ -233,17 +257,21 @@ def main():
                 if border_w:
                     pygame.draw.polygon(screen, OUTLINE, poly, width=border_w)
 
-            # Resaltar destinos legales (borde adicional)
+            # Resaltar destinos legales (borde + badge con pip)
             if origin_idx is not None and legal_dests:
-                legal_set = {d for (d, _) in legal_dests}
-                for i in range(24):
-                    if i == origin_idx or i not in legal_set:
-                        continue
-                    if i <= 11:
-                        poly = tri_polygon_top(i, col_w)
+                for (d, pip) in legal_dests:
+                    # Borde verde
+                    if d <= 11:
+                        poly = tri_polygon_top(d, col_w)
                     else:
-                        poly = tri_polygon_bottom(i - 12, col_w)
+                        poly = tri_polygon_bottom(d - 12, col_w)
                     pygame.draw.polygon(screen, LEGAL, poly, width=3)
+                    # Badge con pip
+                    bx, by = tri_center(d, col_w)
+                    by = by - 16 if d <= 11 else by + 16
+                    pygame.draw.circle(screen, LEGAL, (bx, by), BADGE_R)
+                    txt = font_badge.render(str(pip), True, (255, 255, 255))
+                    screen.blit(txt, txt.get_rect(center=(bx, by)))
 
             # Totales arriba-izquierda
             white_total = board.count_total(Board.WHITE)
@@ -254,10 +282,8 @@ def main():
             # Etiquetas 0..23 centradas por columna
             for i in range(12):
                 cx = BOARD_LEFT + i * col_w + col_w / 2
-                # superior
                 label_top = font_small.render(str(i), True, TXT)
                 screen.blit(label_top, label_top.get_rect(center=(cx, MARGIN + TRI_H + 10)))
-                # inferior
                 idx_b = 12 + i
                 label_bot = font_small.render(str(idx_b), True, TXT)
                 screen.blit(label_bot, label_bot.get_rect(center=(cx, H - MARGIN - TRI_H - 12)))
@@ -271,7 +297,6 @@ def main():
                 color_fill = CHECKER_WHITE if owner == Board.WHITE else CHECKER_BLACK
                 cx = BOARD_LEFT + (i_idx % 12) * col_w + col_w / 2
                 if top_band:
-                    # apilar hacia abajo desde la banda superior
                     for k in range(min(cnt, 5)):
                         cy = MARGIN + R + k * (2 * R + GAP)
                         pygame.draw.circle(screen, color_fill, (int(cx), int(cy)), R)
@@ -280,7 +305,6 @@ def main():
                         extra = font_small.render(f"+{cnt-5}", True, TXT)
                         screen.blit(extra, extra.get_rect(center=(cx, MARGIN + TRI_H - 10)))
                 else:
-                    # apilar hacia arriba desde la banda inferior
                     for k in range(min(cnt, 5)):
                         cy = H - MARGIN - R - k * (2 * R + GAP)
                         pygame.draw.circle(screen, color_fill, (int(cx), int(cy)), R)
@@ -293,6 +317,13 @@ def main():
                 draw_stack(i, top_band=True)
             for i in range(12, 24):
                 draw_stack(i, top_band=False)
+
+            # Último movimiento: línea resaltada
+            if last_move is not None:
+                o, d, col, pip = last_move
+                x0, y0 = tri_center(o, col_w)
+                x1, y1 = tri_center(d, col_w)
+                pygame.draw.line(screen, (20, 160, 120), (x0, y0), (x1, y1), width=4)
 
             # Tooltip hover (sobre tablero)
             if idx_hover is not None:
@@ -323,10 +354,11 @@ def main():
             if show_help:
                 help_lines = [
                     "- Click: ORIGEN → DESTINO",
-                    "- Destinos legales resaltados en verde",
+                    "- Destinos legales en verde (badge = pip)",
                     "- T: alternar color (White/Black)",
                     "- U: deshacer última jugada",
-                    "- R: resetear tablero inicial",
+                    "- R: resetear tablero",
+                    "- S: guardar captura (screens/)",
                     "- H: mostrar/ocultar ayuda",
                     "- ESC: limpiar selección o salir",
                     "- Q: salir",
