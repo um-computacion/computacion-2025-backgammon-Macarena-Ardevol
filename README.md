@@ -20,23 +20,31 @@ El proyecto prioriza **POO + SOLID**, pruebas automatizadas y mejora continua. I
 - .github/workflows/ci.yml — integración continua (tests/cobertura en GitHub Actions)
 
 backgammon/
-  core/ — lógica del juego
-      board.py — 24 puntos; num_points(), get_point()/set_point(), setup_initial(), count_total(color)
-      dice.py — tiradas de 2 dados; is_double()
-      player.py, checker.py — getters públicos
-      game.py — jugadores y turnos; start_turn(roll), last_roll(), pips(), setup_board()
+  core/
+    board.py
+    dice.py
+    player.py
+    checker.py
+    game.py
+  cli/
+    app.py
+    __main__.py
+  pygame_ui/
+    __main__.py
 
-  cli/ — interfaz de línea de comandos
-      app.py — main() con --setup y --roll a,b
-      __main__.py — entrypoint para python -m backgammon.cli
-
-pygame_ui/ — interfaz con Pygame (pendiente)
-assets/ — recursos (imágenes, sonidos)
-requirements.txt — dependencias
+assets/
+requirements.txt
 
 tests/
-      test_validos/ — pruebas para casos válidos (p. ej., test_core.py)
-      test_errores/ — pruebas de entradas inválidas/límites (p. ej., test_errores.py)
+  test_validos/
+    test_board.py
+    test_game.py
+    test_cli.py
+    test_dice_checker_player.py
+  test_errores/
+    test_board_errores.py
+    test_game_errores.py
+    test_cli_errores.py
 
 
 ## Requisitos
@@ -69,24 +77,38 @@ python -m backgammon.cli --setup --roll 3,4 --move 7,3
 
 *Inicializa el tablero, fija la tirada (3,4) y mueve una ficha blanca de la posición 7 a la 4 (consume el pip 3).*
 
-**Finalizar turno (todos los pips consumidos)**
+# Finalizar turno (todos los pips consumidos)
 python -m backgammon.cli --setup --roll 3,4 --move 7,3 --move 5,4 --end-turn
 
-**Auto-cerrar turno si no hay jugadas legales**
+# Auto-cerrar turno si no hay jugadas legales
 python -m backgammon.cli --setup --roll 1,1 --auto-end-turn
 
-**Ver historial del turno**
+# Ver historial del turno
 python -m backgammon.cli --setup --roll 3,4 --move 7,3 --history
 
-**Mostrar estado (jugador actual)**
+# Mostrar estado (jugador actual)
 python -m backgammon.cli --status
 
+## Interfaz Pygame (base mínima)
+> Requiere instalación local de Pygame (no se incluye en CI).
 
-## Ejecutar en modo Pygame (pendiente)
+Instalar localmente:
+pip install pygame
 
-Esta sección se completará cuando se integre la UI de Pygame.
-Se documentarán requisitos específicos y el comando de ejecución correspondiente.
+Ejecutar la UI:
+python -m backgammon.pygame_ui
 
+## Interfaz Pygame (base mínima)
+> Requiere instalación local de Pygame (no se incluye en CI).
+
+**Instalar localmente:**
+pip install pygame
+
+**Ejecutar la UI:**
+python -m backgammon.pygame_ui
+
+En la UI mínima podés pasar el mouse para ver información del punto y hacer click para seleccionarlo.
+Atajos: H (ayuda), ESC/Q (salir). Se muestran índices 0..23 y FPS.
 
 ## ¿Cómo correr los tests? 
 
