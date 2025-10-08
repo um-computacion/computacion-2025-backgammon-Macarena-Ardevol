@@ -51,6 +51,7 @@ def main():
         pygame.display.set_caption("Backgammon - UI mínima")
         clock = pygame.time.Clock()
         font = pygame.font.SysFont(None, 24)
+        font_small = pygame.font.SysFont(None, 16)
 
         board = Board()
         board.setup_initial()
@@ -59,6 +60,7 @@ def main():
         col_w = width / 12
 
         selected_idx = None
+        show_help = True  # H alterna ayuda
 
         running = True
         while running:
@@ -69,19 +71,20 @@ def main():
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
-                elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                    # ESC: limpiar selección o salir si no hay selección
-                    if selected_idx is not None:
-                        selected_idx = None
-                    else:
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        if selected_idx is not None:
+                            selected_idx = None
+                        else:
+                            running = False
+                    elif event.key == pygame.K_q:
                         running = False
+                    elif event.key == pygame.K_h:
+                        show_help = not show_help
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     # Click izquierdo: seleccionar/deseleccionar
                     if idx_hover is not None:
-                        if selected_idx == idx_hover:
-                            selected_idx = None
-                        else:
-                            selected_idx = idx_hover
+                        selected_idx = None if selected_idx == idx_hover else idx_hover
                     else:
                         selected_idx = None
 
@@ -127,6 +130,19 @@ def main():
             info = font.render(f"White: {white_total} | Black: {black_total}", True, TXT)
             screen.blit(info, (MARGIN, MARGIN - 28))
 
+            # Etiquetas 0..23 centradas por columna
+            for i in range(12):
+                cx = MARGIN + i * col_w + col_w / 2
+                # superior: debajo del triángulo
+                label_top = font_small.render(str(i), True, TXT)
+                rect_top = label_top.get_rect(center=(cx, MARGIN + TRI_H + 10))
+                screen.blit(label_top, rect_top)
+                # inferior: encima del triángulo
+                idx_b = 12 + i
+                label_bot = font_small.render(str(idx_b), True, TXT)
+                rect_bot = label_bot.get_rect(center=(cx, H - MARGIN - TRI_H - 12))
+                screen.blit(label_bot, rect_bot)
+
             # Tooltip hover
             if idx_hover is not None:
                 try:
@@ -134,23 +150,44 @@ def main():
                     cnt = board.count_at(idx_hover)
                     owner_lbl = "White" if owner == Board.WHITE else ("Black" if owner == Board.BLACK else "Empty")
                     tip = font.render(f"Hover: {idx_hover} | {owner_lbl} x{cnt}", True, TXT)
-                    tip_y = MARGIN + TRI_H + 8 if idx_hover <= 11 else (H - MARGIN - TRI_H - 28)
+                    tip_y = MARGIN + TRI_H + 28 if idx_hover <= 11 else (H - MARGIN - TRI_H - 32)
                     screen.blit(tip, (MARGIN, tip_y))
                 except Exception:
                     pass
 
             # Barra de estado selección
-            status_msg = "Sin selección"
+            status_msg = "Sin selección (H: ayuda, Q/ESC: salir)"
             if selected_idx is not None:
                 try:
                     owner = board.owner_at(selected_idx)
                     cnt = board.count_at(selected_idx)
                     owner_lbl = "White" if owner == Board.WHITE else ("Black" if owner == Board.BLACK else "Empty")
-                    status_msg = f"Seleccionado: {selected_idx} | {owner_lbl} x{cnt}   (ESC para limpiar)"
+                    status_msg = f"Seleccionado: {selected_idx} | {owner_lbl} x{cnt}   (ESC para limpiar, H: ayuda, Q/ESC: salir)"
                 except Exception:
-                    status_msg = f"Seleccionado: {selected_idx}"
+                    status_msg = f"Seleccionado: {selected_idx} (H: ayuda, Q/ESC: salir)"
             status = font.render(status_msg, True, TXT)
-            screen.blit(status, (MARGIN, H - MARGIN + 6 - 24))  # justo arriba del margen inferior
+            screen.blit(status, (MARGIN, H - MARGIN + 6 - 24))
+
+            # Ayuda (toggle con H)
+            if show_help:
+                help_lines = [
+                    "Ayuda:",
+                    "- Hover: resalta punto y muestra info",
+                    "- Click: selecciona/deselecciona punto",
+                    "- H: mostrar/ocultar ayuda",
+                    "- ESC: limpiar selección o salir",
+                    "- Q: salir"
+                ]
+                y = MARGIN + 8
+                for line in help_lines:
+                    surf = font_small.render(line, True, TXT)
+                    screen.blit(surf, (W - MARGIN - 260, y))
+                    y += 18
+
+            # FPS arriba a la derecha
+            fps = clock.get_fps()
+            fps_surf = font_small.render(f"{fps:.0f} FPS", True, TXT)
+            screen.blit(fps_surf, (W - MARGIN - fps_surf.get_width(), MARGIN - 28))
 
             pygame.display.flip()
             clock.tick(60)

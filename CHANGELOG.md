@@ -42,6 +42,7 @@ Formato: Keep a Changelog.
 - Core: `Game.turn_history()` y `Game.auto_end_turn()`.
 - Pygame UI mínima (`python -m backgammon.pygame_ui`): ventana, 24 puntos y totales.
 - Pygame UI: **hover** para info, **selección por click** y barra de estado.
+- Pygame UI: índices 0..23, FPS y atajos (H/ESC/Q).
 
 ### Changed
 - CLI: validación estricta de `--roll` (vacío/incorrecto → `ValueError`).
