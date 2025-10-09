@@ -478,20 +478,53 @@ def main():
                 screen.blit(surf, (panel_x + 10, y)); y += 18
 
             # Estado
+            # ---- Panel lateral (estado + ayuda + lista turno) ----
+            panel_x = W - MARGIN - PANEL_W
+            pygame.draw.rect(screen, BG_PANEL, pygame.Rect(panel_x, MARGIN, PANEL_W, H - 2 * MARGIN), border_radius=8)
+            pygame.draw.line(screen, SEP, (panel_x - 6, MARGIN), (panel_x - 6, H - MARGIN), 2)
+
+            fps = clock.get_fps()
+            screen.blit(font_small.render(f"{fps:.0f} FPS", True, TXT), (panel_x + PANEL_W - 40, MARGIN + 6))
+            screen.blit(font.render("Ayuda", True, TXT), (panel_x + 10, MARGIN + 4))
+
+            help_lines = [
+                "- ESPACIO: tirar dados  | F: tirada fija (3,4)",
+                "- Click: ORIGEN → DESTINO (usa pip)  |  Click der.: cancelar",
+                "- U: deshacer  |  C: cancelar turno",
+                "- E: fin de turno  |  A: auto-end si no hay jugadas",
+                "- G: guardar  |  L: cargar",
+                "- R: reset  |  S: captura  |  ESC/Q: salir",
+            ]
+            y = MARGIN + 32
+            for line in help_lines:
+                surf = font_small.render(line, True, TXT)
+                screen.blit(surf, (panel_x + 10, y)); y += 18
+
+            # Estado (bloque 1)
             cur_lbl = owner_label(current_color_int(game))
             roll = game.last_roll()
             pips_txt = str(game.pips())
-            screen.blit(font_small.render(f"Jugador: {cur_lbl}", True, TXT), (panel_x + 10, H - MARGIN - 106))
-            screen.blit(font_small.render(f"Dados: {roll}", True, TXT),    (panel_x + 10, H - MARGIN - 88))
-            screen.blit(font_small.render(f"Pips:  {pips_txt}", True, TXT),(panel_x + 10, H - MARGIN - 70))
-            screen.blit(font_small.render((message or "Listo"), True, TXT), (panel_x + 10, H - MARGIN - 52))
+            state_y = H - MARGIN - 126
+            screen.blit(font_small.render(f"Jugador: {cur_lbl}", True, TXT), (panel_x + 10, state_y)); state_y += 18
+            screen.blit(font_small.render(f"Dados: {roll}",   True, TXT), (panel_x + 10, state_y));    state_y += 18
+            screen.blit(font_small.render(f"Pips:  {pips_txt}",True, TXT), (panel_x + 10, state_y));   state_y += 18
 
-            # Lista de movimientos del turno (últimos 6)
-            screen.blit(font_small.render("Turno (movs):", True, TXT), (panel_x + 10, H - MARGIN - 34))
-            y_list = H - MARGIN - 18
+            # Mensaje de estado (bloque 2) — UNA sola línea, truncada si es larga
+            msg_txt = (message or "Listo")
+            if len(msg_txt) > 42:
+                msg_txt = msg_txt[:39] + "..."
+            screen.blit(font_small.render(msg_txt, True, TXT), (panel_x + 10, state_y)); state_y += 12
+
+            # Lista de movimientos del turno (bloque 3) — parte alta del pie
+            list_title_y = state_y + 16
+            screen.blit(font_small.render("Turno (últimos 6):", True, TXT), (panel_x + 10, list_title_y))
+            y_list = list_title_y + 16
+            # mostramos máx. 6, de más nuevo a más viejo
             for mv in turn_moves[-6:][::-1]:
-                y_list -= 16
+                if y_list > H - MARGIN - 6:  # evita salir del panel
+                    break
                 screen.blit(font_small.render(f"• {mv}", True, TXT), (panel_x + 14, y_list))
+                y_list += 16
 
             pygame.display.flip()
             clock.tick(60)
