@@ -153,3 +153,33 @@ class BackgammonGame:
     def turn_history(self) -> list[tuple[int, int, int]]:
         """Devuelve la lista [(origin, pip, dest)] aplicada en el turno actual."""
         return list(self.__turn_moves__)
+
+    def to_dict(self) -> dict:
+        """Exporta el estado mínimo necesario para reanudar la partida."""
+        return {
+            "board": [self.__board__.get_point(i) for i in range(24)],
+            "players": [{"name": p.get_name(), "color": p.get_color()} for p in self.__players__],
+            "current_index": int(self.__current_player_index__),
+            "last_roll": list(self.__last_roll__) if self.__last_roll__ is not None else None,
+            "pips": list(self.__pips__),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "BackgammonGame":
+        """Crea un juego desde un dict generado por to_dict()."""
+        g = cls()
+        # reconstruir jugadores
+        g.__players__.clear()
+        for p in data.get("players", []):
+            g.add_player(p["name"], p["color"])
+        # índice de turno
+        g.__current_player_index__ = int(data.get("current_index", 0))
+        # tablero
+        board_points = data.get("board", [0]*24)
+        for i, v in enumerate(board_points):
+            g.__board__.set_point(i, int(v))
+        # tirada + pips
+        last_roll = data.get("last_roll", None)
+        g.__last_roll__ = tuple(last_roll) if last_roll is not None else None
+        g.__pips__ = tuple(data.get("pips", []))
+        return g
