@@ -34,11 +34,13 @@ def main():
     GAP = 2
     BADGE_R = 10
 
-    RIVAL_LINE = (160, 80, 200)  # violeta para turno rival
-
     BOARD_LEFT = MARGIN
     BOARD_RIGHT = W - MARGIN - PANEL_W
     BOARD_W = BOARD_RIGHT - BOARD_LEFT
+
+    # Colores para trails
+    LAST_MOVE_CLR   = (20, 160, 120)   # última jugada mía (verde)
+    RIVAL_TURN_CLR  = (160, 80, 200)   # jugadas del turno anterior (violeta)
 
     # --- Helpers geom ---
     def tri_polygon_top(i, col_w):
@@ -74,6 +76,7 @@ def main():
 
     def current_color_int(game):
         p = game.current_player()
+        # Soporta Player con getters o atributo interno
         if hasattr(p, "get_color") and callable(p.get_color):
             color = p.get_color()
         else:
@@ -131,15 +134,20 @@ def main():
         selected_idx = None
         legal_dests = []      # [(dest, pip)]
         last_move = None      # (origin, dest, color, pip)
-        history = []          # snapshots por jugada (U)
+
+        # Historial/turnos
+        history = []                 # snapshots para U
         turn_start_snap = None
-        turn_moves = []       # ["7->4 (pip 3)", ...]
-        turn_moves_struct = []  # [(origin, dest, color, pip)]
-        rival_last_turn_moves = []  # jugadas del turno anterior del rival
+        turn_moves_text = []         # ["7->4 (pip 3)", ...]
+        turn_moves_struct = []       # [(o,d,color,pip), ...]
+        last_completed_turn_struct = []  # jugadas del turno anterior (del rival)
+        show_rival_trail = True      # toggle con 'V'
+
         message = ""
 
         def start_turn_and_reset_ui(roll_tuple=None):
-            nonlocal origin_idx, selected_idx, legal_dests, last_move, history, turn_start_snap, turn_moves, turn_moves_struct, message
+            nonlocal origin_idx, selected_idx, legal_dests, last_move
+            nonlocal history, turn_start_snap, turn_moves_text, turn_moves_struct, message
             if roll_tuple:
                 game.start_turn(roll_tuple)
             else:
@@ -148,7 +156,7 @@ def main():
             legal_dests = []
             last_move = None
             history.clear()
-            turn_moves.clear()
+            turn_moves_text.clear()
             turn_moves_struct.clear()
             turn_start_snap = snapshot_game(game, board)
             message = f"Dados: {game.last_roll()} | Pips: {game.pips()}"
@@ -164,22 +172,11 @@ def main():
             return str(SAVEFILE)
 
         def load_game():
-            nonlocal board, game, origin_idx, selected_idx, legal_dests, history, turn_moves, turn_moves_struct, last_move, message
             if not SAVEFILE.exists():
                 return None
             with open(SAVEFILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            new_g = BackgammonGame.from_dict(data)
-            game = new_g
-            board = game.board()
-            origin_idx = selected_idx = None
-            legal_dests = []
-            history.clear()
-            turn_moves.clear()
-            turn_moves_struct.clear()
-            last_move = None
-            message = "Partida cargada"
-            return new_g
+            return BackgammonGame.from_dict(data)
 
         running = True
         while running:
@@ -206,6 +203,10 @@ def main():
                     elif event.key == pygame.K_q:
                         running = False
 
+                    elif event.key == pygame.K_v:
+                        show_rival_trail = not show_rival_trail
+                        message = "Resaltado del turno rival: " + ("ON" if show_rival_trail else "OFF")
+
                     elif event.key == pygame.K_SPACE:
                         start_turn_and_reset_ui()
 
@@ -214,13 +215,14 @@ def main():
 
                     elif event.key == pygame.K_e:
                         try:
-                            # Guardar las jugadas del turno que termina como "del rival" para el siguiente jugador
-                            rival_last_turn_moves = list(turn_moves_struct)
+                            # Guardamos las jugadas del turno actual como "turno anterior"
+                            last_completed_turn_struct = list(turn_moves_struct)
                             game.end_turn()
+                            # limpiar selección/estado de UI
                             origin_idx = selected_idx = None
                             legal_dests = []
                             history.clear()
-                            turn_moves.clear()
+                            turn_moves_text.clear()
                             turn_moves_struct.clear()
                             last_move = None
                             message = "Turno finalizado"
@@ -229,13 +231,14 @@ def main():
 
                     elif event.key == pygame.K_a:
                         if hasattr(game, "auto_end_turn"):
-                            ok = game.auto_end_turn()
-                            if ok:
-                                rival_last_turn_moves = list(turn_moves_struct)
+                            # Si rota, el turno anterior pasa a ser lo que se jugó (si algo se jugó)
+                            rotated = game.auto_end_turn()
+                            if rotated:
+                                last_completed_turn_struct = list(turn_moves_struct)
                                 origin_idx = selected_idx = None
                                 legal_dests = []
                                 history.clear()
-                                turn_moves.clear()
+                                turn_moves_text.clear()
                                 turn_moves_struct.clear()
                                 last_move = None
                                 message = "Sin jugadas → turno rotado"
@@ -246,8 +249,8 @@ def main():
                         if history:
                             snap = history.pop()
                             restore_game(game, board, snap)
-                            if turn_moves:
-                                turn_moves.pop()
+                            if turn_moves_text:
+                                turn_moves_text.pop()
                             if turn_moves_struct:
                                 turn_moves_struct.pop()
                             origin_idx = selected_idx = None
@@ -260,12 +263,12 @@ def main():
                         if turn_start_snap is not None:
                             restore_game(game, board, turn_start_snap)
                             history.clear()
-                            turn_moves.clear()
+                            turn_moves_text.clear()
                             turn_moves_struct.clear()
                             origin_idx = selected_idx = None
                             legal_dests = []
                             last_move = None
-                            message = "Turno cancelado (estado restaurado tras la tirada)"
+                            message = "Turno cancelado (estado tras tirada)"
                         else:
                             message = "No hay tirada activa para cancelar"
 
@@ -278,10 +281,10 @@ def main():
                         origin_idx = selected_idx = None
                         legal_dests = []
                         history.clear()
-                        turn_moves.clear()
+                        turn_moves_text.clear()
                         turn_moves_struct.clear()
                         last_move = None
-                        rival_last_turn_moves = []
+                        last_completed_turn_struct = []
                         message = "Tablero reseteado (tirar con ESPACIO/F)"
 
                     elif event.key == pygame.K_s:
@@ -290,6 +293,7 @@ def main():
                         pygame.image.save(screen, fn)
                         message = f"Captura guardada: {fn}"
 
+                    # Guardar / Cargar
                     elif event.key == pygame.K_g:
                         fn = save_game()
                         message = f"Guardado: {fn}"
@@ -298,6 +302,18 @@ def main():
                         new_g = load_game()
                         if new_g is None:
                             message = "No hay guardado para cargar"
+                        else:
+                            game = new_g
+                            board = game.board()
+                            origin_idx = selected_idx = None
+                            legal_dests = []
+                            history.clear()
+                            turn_moves_text.clear()
+                            turn_moves_struct.clear()
+                            last_move = None
+                            # Nota: no persistimos trails; se limpian al cargar
+                            last_completed_turn_struct = []
+                            message = "Partida cargada"
 
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     # Click derecho: cancelar selección
@@ -339,7 +355,7 @@ def main():
                                         else:
                                             message = f"Origen: {origin_idx} | Pips: {pips}"
                         else:
-                            # Sólo destinos legales
+                            # Sólo destinos de la lista legal
                             legal_set = {d for (d, _) in legal_dests}
                             if not legal_dests or idx_hover not in legal_set:
                                 message = f"No permitido: {origin_idx}->{idx_hover}"
@@ -355,19 +371,19 @@ def main():
                             history.append(snapshot_game(game, board))
                             real_dest = game.apply_move(origin_idx, pip)
                             last_move = (origin_idx, real_dest, cur_color, pip)
-                            turn_moves.append(f"{origin_idx}->{real_dest} (pip {pip})")
-                            turn_moves_struct.append(last_move)
+                            turn_moves_text.append(f"{origin_idx}->{real_dest} (pip {pip})")
+                            turn_moves_struct.append((origin_idx, real_dest, cur_color, pip))
                             message = f"Move: {origin_idx}->{real_dest} (pip {pip}) | Pips: {game.pips()}"
 
                             origin_idx = None
                             selected_idx = None
                             legal_dests = []
 
-            # ---- Dibujo de tablero ----
+            # ---- Dibujo ----
             screen.fill(BG)
             col_w = BOARD_W / 12
 
-            # Triángulos (arriba)
+            # Triángulos superiores
             for i in range(12):
                 poly = tri_polygon_top(i, col_w)
                 color = SELECT if i == origin_idx else (HILIGHT if i == idx_hover else TOP_CLR)
@@ -376,7 +392,7 @@ def main():
                 if border_w:
                     pygame.draw.polygon(screen, OUTLINE, poly, width=border_w)
 
-            # Triángulos (abajo)
+            # Triángulos inferiores
             for i in range(12):
                 idx = 12 + i
                 poly = tri_polygon_bottom(i, col_w)
@@ -442,21 +458,21 @@ def main():
             for i in range(12, 24):
                 draw_stack(i, False)
 
-            # Último movimiento del jugador actual (línea verde)
+            # Último movimiento propio (línea)
             if last_move is not None:
                 o, d, _, _ = last_move
                 x0, y0 = tri_center(o, col_w)
                 x1, y1 = tri_center(d, col_w)
-                pygame.draw.line(screen, (20, 160, 120), (x0, y0), (x1, y1), width=4)
+                pygame.draw.line(screen, LAST_MOVE_CLR, (x0, y0), (x1, y1), width=4)
 
-            # Turno anterior del rival: trazar líneas en violeta
-            if rival_last_turn_moves:
-                for (o, d, _, _) in rival_last_turn_moves:
+            # Jugadas del turno anterior (rival), si están habilitadas
+            if show_rival_trail and last_completed_turn_struct:
+                for (o, d, _color, _pip) in last_completed_turn_struct:
                     x0, y0 = tri_center(o, col_w)
                     x1, y1 = tri_center(d, col_w)
-                    pygame.draw.line(screen, RIVAL_LINE, (x0, y0), (x1, y1), width=3)
+                    pygame.draw.line(screen, RIVAL_TURN_CLR, (x0, y0), (x1, y1), width=3)
 
-            # ---- Panel lateral (estado + ayuda + lista turno) ----
+            # Panel lateral (único)
             panel_x = W - MARGIN - PANEL_W
             pygame.draw.rect(screen, BG_PANEL, pygame.Rect(panel_x, MARGIN, PANEL_W, H - 2 * MARGIN), border_radius=8)
             pygame.draw.line(screen, SEP, (panel_x - 6, MARGIN), (panel_x - 6, H - MARGIN), 2)
@@ -470,6 +486,7 @@ def main():
                 "- Click: ORIGEN → DESTINO (usa pip)  |  Click der.: cancelar",
                 "- U: deshacer  |  C: cancelar turno",
                 "- E: fin de turno  |  A: auto-end si no hay jugadas",
+                "- V: ver/ocultar turno rival",
                 "- G: guardar  |  L: cargar",
                 "- R: reset  |  S: captura  |  ESC/Q: salir",
             ]
@@ -478,7 +495,7 @@ def main():
                 surf = font_small.render(line, True, TXT)
                 screen.blit(surf, (panel_x + 10, y)); y += 18
 
-            # Estado (bloque 1)
+            # Estado
             cur_lbl = owner_label(current_color_int(game))
             roll = game.last_roll()
             pips_txt = str(game.pips())
@@ -487,17 +504,17 @@ def main():
             screen.blit(font_small.render(f"Dados: {roll}",   True, TXT), (panel_x + 10, state_y));    state_y += 18
             screen.blit(font_small.render(f"Pips:  {pips_txt}",True, TXT), (panel_x + 10, state_y));   state_y += 18
 
-            # Mensaje (bloque 2) — una sola línea, truncada
+            # Mensaje de estado (una sola línea)
             msg_txt = (message or "Listo")
             if len(msg_txt) > 42:
                 msg_txt = msg_txt[:39] + "..."
             screen.blit(font_small.render(msg_txt, True, TXT), (panel_x + 10, state_y)); state_y += 12
 
-            # Lista de movimientos (bloque 3)
+            # Lista de movimientos del turno (máx. 6, más nuevo arriba)
             list_title_y = state_y + 16
             screen.blit(font_small.render("Turno (últimos 6):", True, TXT), (panel_x + 10, list_title_y))
             y_list = list_title_y + 16
-            for mv in turn_moves[-6:][::-1]:
+            for mv in turn_moves_text[-6:][::-1]:
                 if y_list > H - MARGIN - 6:
                     break
                 screen.blit(font_small.render(f"• {mv}", True, TXT), (panel_x + 14, y_list))
