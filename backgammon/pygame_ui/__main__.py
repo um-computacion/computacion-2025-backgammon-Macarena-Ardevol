@@ -8,7 +8,7 @@ def main():
 
     from backgammon.core.board import Board
     from backgammon.core.game import BackgammonGame
-    import time
+    import time, json
     from pathlib import Path
 
     # --- Config ---
@@ -38,7 +38,7 @@ def main():
     BOARD_RIGHT = W - MARGIN - PANEL_W
     BOARD_W = BOARD_RIGHT - BOARD_LEFT
 
-    # ---- Helpers geom ----
+    # --- Helpers geom ---
     def tri_polygon_top(i, col_w):
         x0 = BOARD_LEFT + i * col_w
         x1 = x0 + col_w
@@ -66,13 +66,18 @@ def main():
             return 12 + i if 0 <= i < 12 else None
         return None
 
-    # --- Helpers de juego/UI ----
+    # --- Helpers de juego/UI ---
     def owner_label(owner):
         return "White" if owner == Board.WHITE else ("Black" if owner == Board.BLACK else "Empty")
 
     def current_color_int(game):
         p = game.current_player()
-        return Board.WHITE if p.get_color() == "white" else Board.BLACK
+        # Soporta Player con getters o atributo interno
+        if hasattr(p, "get_color") and callable(p.get_color):
+            color = p.get_color()
+        else:
+            color = getattr(p, "_Player__color__", getattr(p, "color", None))
+        return Board.WHITE if color == "white" else Board.BLACK
 
     def snapshot_points(b: Board):
         return tuple(b.get_point(i) for i in range(24))
@@ -129,19 +134,43 @@ def main():
         turn_start_snap = None
         turn_moves = []       # ["7->4 (pip 3)", ...]
         message = ""
-        show_help = True
+
+        # NUEVO: recordar movimientos del turno anterior (rival)
+        rival_last_turn_moves = []   # [(o,d,color,pip), ...]
 
         def start_turn_and_reset_ui(roll_tuple=None):
             nonlocal origin_idx, selected_idx, legal_dests, last_move, history, turn_start_snap, turn_moves, message
-            game.start_turn(roll_tuple) if roll_tuple else game.start_turn()
+            if roll_tuple:
+                game.start_turn(roll_tuple)
+            else:
+                game.start_turn()
             origin_idx = selected_idx = None
             legal_dests = []
             last_move = None
             history.clear()
             turn_moves.clear()
-            # snapshot justo después de tirar: sirve para "C" (cancel turn)
             turn_start_snap = snapshot_game(game, board)
             message = f"Dados: {game.last_roll()} | Pips: {game.pips()}"
+
+        # Guardar / Cargar
+        SAVEDIR = Path("saves"); SAVEDIR.mkdir(exist_ok=True)
+        SAVEFILE = SAVEDIR / "last.json"
+
+        def save_game():
+            data = game.to_dict()
+            with open(SAVEFILE, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            return str(SAVEFILE)
+
+        def load_game():
+            nonlocal board
+            if not SAVEFILE.exists():
+                return None
+            with open(SAVEFILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            new_g = BackgammonGame.from_dict(data)
+            # Reemplazar la instancia de juego
+            return new_g
 
         running = True
         while running:
@@ -176,7 +205,14 @@ def main():
 
                     elif event.key == pygame.K_e:
                         try:
+                            # al cerrar turno, guardamos los movimientos que se hicieron para resaltarlos como "del rival"
+                            # cuando cambie el jugador actual
+                            if last_move is not None or turn_moves:
+                                # reconstruir lista rica (o,d,color,pip) desde history inverso no es trivial;
+                                # guardamos sólo el último move detallado si existe
+                                pass
                             game.end_turn()
+                            rival_last_turn_moves = []  # el rival todavía no jugó; limpiamos
                             origin_idx = selected_idx = None
                             legal_dests = []
                             history.clear()
@@ -190,6 +226,7 @@ def main():
                         if hasattr(game, "auto_end_turn"):
                             ok = game.auto_end_turn()
                             if ok:
+                                rival_last_turn_moves = []  # rival aún no jugó
                                 origin_idx = selected_idx = None
                                 legal_dests = []
                                 history.clear()
@@ -203,7 +240,6 @@ def main():
                         if history:
                             snap = history.pop()
                             restore_game(game, board, snap)
-                            # sacar la última descripción
                             if turn_moves:
                                 turn_moves.pop()
                             origin_idx = selected_idx = None
@@ -213,7 +249,6 @@ def main():
                             message = "No hay jugadas para deshacer"
 
                     elif event.key == pygame.K_c:
-                        # Cancelar todo el turno (volver al estado tras tirar)
                         if turn_start_snap is not None:
                             restore_game(game, board, turn_start_snap)
                             history.clear()
@@ -226,7 +261,6 @@ def main():
                             message = "No hay tirada activa para cancelar"
 
                     elif event.key == pygame.K_r:
-                        # Reset total (nuevo juego)
                         game = BackgammonGame()
                         game.add_player("White", "white")
                         game.add_player("Black", "black")
@@ -238,13 +272,31 @@ def main():
                         turn_moves.clear()
                         last_move = None
                         message = "Tablero reseteado (tirar con ESPACIO/F)"
-                        turn_start_snap = None
 
                     elif event.key == pygame.K_s:
                         Path("screens").mkdir(parents=True, exist_ok=True)
                         fn = f"screens/snap-{time.strftime('%Y%m%d-%H%M%S')}.png"
                         pygame.image.save(screen, fn)
                         message = f"Captura guardada: {fn}"
+
+                    # NUEVO: Guardar / Cargar
+                    elif event.key == pygame.K_g:
+                        fn = save_game()
+                        message = f"Guardado: {fn}"
+
+                    elif event.key == pygame.K_l:
+                        new_g = load_game()
+                        if new_g is None:
+                            message = "No hay guardado para cargar"
+                        else:
+                            game = new_g
+                            board = game.board()
+                            origin_idx = selected_idx = None
+                            legal_dests = []
+                            history.clear()
+                            turn_moves.clear()
+                            last_move = None
+                            message = "Partida cargada"
 
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     # Click derecho: cancelar selección
@@ -387,12 +439,21 @@ def main():
             for i in range(12, 24):
                 draw_stack(i, False)
 
-            # Último movimiento
+            # Último movimiento (línea)
             if last_move is not None:
                 o, d, _, _ = last_move
                 x0, y0 = tri_center(o, col_w)
                 x1, y1 = tri_center(d, col_w)
                 pygame.draw.line(screen, (20, 160, 120), (x0, y0), (x1, y1), width=4)
+
+            # resaltar puntos del último turno del rival (si existieran)
+            # En esta versión simple, uso la última línea dibujada como referencia visual
+            # Placeholder: no acumulo aún movimientos del rival, pero dejo el hook:
+            # if rival_last_turn_moves:
+            #     for (o, d, color, pip) in rival_last_turn_moves:
+            #         x0, y0 = tri_center(o, col_w)
+            #         x1, y1 = tri_center(d, col_w)
+            #         pygame.draw.line(screen, (180, 80, 200), (x0, y0), (x1, y1), width=3)
 
             # Panel lateral
             panel_x = W - MARGIN - PANEL_W
@@ -405,11 +466,11 @@ def main():
 
             help_lines = [
                 "- ESPACIO: tirar dados  | F: tirada fija (3,4)",
-                "- Click: ORIGEN → DESTINO (usa pip)",
-                "- U: deshacer última jugada  | C: cancelar turno",
+                "- Click: ORIGEN → DESTINO (usa pip)  |  Click der.: cancelar selección",
+                "- U: deshacer jugada  |  C: cancelar turno",
                 "- E: fin de turno  |  A: auto-end si no hay jugadas",
-                "- R: resetear juego  |  S: captura  |  Click der.: cancelar selección",
-                "- ESC/Q: salir",
+                "- G: guardar partida  |  L: cargar partida",
+                "- R: resetear juego  |  S: captura  |  ESC/Q: salir",
             ]
             y = MARGIN + 32
             for line in help_lines:
