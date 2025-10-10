@@ -2,7 +2,6 @@ from backgammon.core.board import Board
 from backgammon.core.player import Player
 from backgammon.core.dice import Dice
 
-
 class BackgammonGame:
     """Clase principal del juego Backgammon."""
     def __init__(self):
@@ -12,10 +11,9 @@ class BackgammonGame:
         self.__dice__ = Dice()
         self.__last_roll__ = None
         self.__pips__ = tuple()
-        self.__pips_left__ = []
-        self.__turn_moves__ = []  # [(origin, pip, dest)] solo del turno actual
+        self.__turn_history__ = []  # strings tipo "7->4 (pip 3)" del turno actual
 
-    # gestión de jugadores / turno 
+    # --- jugadores / tablero ---
     def add_player(self, name: str, color: str) -> None:
         self.__players__.append(Player(name, color))
 
@@ -31,155 +29,126 @@ class BackgammonGame:
         if self.__players__:
             self.__current_player_index__ = (self.__current_player_index__ + 1) % len(self.__players__)
 
-    # acceso a objetos internos (solo lectura)
-    def board(self):
-        return self.__board__
-
-    def players(self):
-        return tuple(self.__players__)
-
-    # configuración inicial
     def setup_board(self) -> None:
         self.__board__.setup_initial()
 
-    # dados / pips 
+    def board(self):
+        """Devuelve el tablero actual (solo lectura)."""
+        return self.__board__
+
+    def players(self):
+        """Devuelve una tupla con los jugadores (solo lectura)."""
+        return tuple(self.__players__)
+
+    # --- dados / pips ---
     def start_turn(self, roll: tuple[int, int] | None = None) -> tuple[int, int]:
-        """Inicia el turno tirando dados (o usando un roll fijo para test)."""
-        self.__last_roll__ = roll if roll is not None else self.__dice__.roll()
+        """
+        Inicia el turno tirando dados (o usando un roll fijo).
+        Valida formato del roll si viene fijado externamente.
+        """
+        if roll is not None:
+            if (not isinstance(roll, tuple)) or len(roll) != 2:
+                raise ValueError("roll debe ser una tupla (a,b)")
+            a, b = roll
+            if not (isinstance(a, int) and isinstance(b, int)):
+                raise ValueError("roll inválido: ambos valores deben ser enteros")
+            if not (1 <= a <= 6 and 1 <= b <= 6):
+                raise ValueError("roll inválido: valores fuera de rango 1..6")
+            self.__last_roll__ = (a, b)
+        else:
+            self.__last_roll__ = self.__dice__.roll()
+
         a, b = self.__last_roll__
-        base = (a, a, a, a) if a == b else (a, b)
-        self.__pips__ = base
-        self.__pips_left__ = list(base)
-        self.__turn_moves__.clear()
+        self.__pips__ = (a, a, a, a) if a == b else (a, b)
+        self.__turn_history__.clear()
         return self.__last_roll__
 
     def last_roll(self) -> tuple[int, int] | None:
         return self.__last_roll__
 
     def pips(self) -> tuple[int, ...]:
-        """Pips restantes por jugar en el turno actual."""
-        return tuple(self.__pips_left__)
+        return self.__pips__
 
-    # helpers de reglas 
-    def _color_sign(self) -> int:
-        """WHITE -> +1, BLACK -> -1 en términos del Board."""
-        cp = self.current_player()
-        if cp is None:
-            raise ValueError("No hay jugadores")
-        color = cp.get_color().lower() if hasattr(cp, "get_color") else cp.__color__.lower()
-        if color == "white":
-            return Board.WHITE
-        if color == "black":
-            return Board.BLACK
-        raise ValueError("Color de jugador inválido")
+    # --- barra (NUEVO accessor) ---
+    def bar_count(self, color: int) -> int:
+        """Cantidad de fichas en barra para el color dado (Board.WHITE/BLACK)."""
+        return self.__board__.bar_count(color)
 
-    # validar / aplicar movimientos 
+    # --- movimientos a nivel Game ---
+    def _current_color_int(self) -> int:
+        p = self.current_player()
+        # Soporta getters o atributo interno
+        color = p.get_color() if hasattr(p, "get_color") else getattr(p, "_Player__color__", getattr(p, "color", None))
+        return Board.WHITE if color == "white" else Board.BLACK
+
     def can_play_move(self, origin: int, pip: int) -> bool:
-        """True si el pip está disponible y el tablero permite el movimiento."""
-        if pip not in self.__pips_left__:
+        if not self.__pips__:
             return False
-        try:
-            color = self._color_sign()
-        except Exception:
-            return False
+        color = self._current_color_int()
         return self.__board__.can_move(origin, pip, color)
+
+    def legal_moves(self):
+        """Devuelve lista de triples (origin, dest, pip) para los pips disponibles."""
+        color = self._current_color_int()
+        res = []
+        pips_set = sorted(set(self.__pips__))
+        for origin in range(self.__board__.num_points()):
+            if self.__board__.owner_at(origin) != color or self.__board__.count_at(origin) == 0:
+                continue
+            for pip in pips_set:
+                try:
+                    dest = self.__board__.dest_from(origin, pip, color)
+                    if self.__board__.can_move(origin, pip, color):
+                        res.append((origin, dest, pip))
+                except Exception:
+                    continue
+        return res
 
     def apply_move(self, origin: int, pip: int) -> int:
         """
-        Aplica un movimiento del jugador actual consumiendo un pip.
-        Retorna el índice de destino. Lanza ValueError si no se puede.
+        Aplica un movimiento legal, consume el pip usado y registra en historia.
+        Devuelve el destino real.
         """
-        if pip not in self.__pips_left__:
-            raise ValueError("Pip no disponible para este turno")
-        color = self._color_sign()
+        if pip not in self.__pips__:
+            raise ValueError("Pip no disponible en el turno actual")
+        color = self._current_color_int()
         dest = self.__board__.move(origin, pip, color)
-        self.__pips_left__.remove(pip)
-        self.__turn_moves__.append((origin, pip, dest))
+        # consumir solo una ocurrencia del pip
+        pips_list = list(self.__pips__)
+        pips_list.remove(pip)
+        self.__pips__ = tuple(pips_list)
+        self.__turn_history__.append(f"{origin}->{dest} (pip {pip})")
         return dest
 
-    # listado de movimientos posibles
-    def legal_moves(self) -> list[tuple[int, int, int]]:
-        """Lista (origin, pip, dest) posibles para el jugador actual con los pips restantes."""
-        color = self._color_sign()
-        return self.__board__.legal_moves(color, list(self.__pips_left__))
-
     def has_any_move(self) -> bool:
-        """True si el jugador actual puede mover con los pips restantes."""
-        return len(self.legal_moves()) > 0
+        return bool(self.legal_moves())
 
-    #  cierre/rotación de turnos
     def is_turn_over(self) -> bool:
-        """True si no quedan pips por jugar en el turno actual."""
-        return len(self.__pips_left__) == 0
+        return len(self.__pips__) == 0
 
     def end_turn(self) -> None:
-        """
-        Finaliza el turno solo si no quedan pips. Rota al siguiente jugador
-        y limpia el estado de tirada.
-        """
+        """Finaliza turno: sólo si no quedan pips. Rota al siguiente jugador."""
         if not self.is_turn_over():
             raise ValueError("Aún quedan pips por jugar")
         self.next_turn()
         self.__last_roll__ = None
         self.__pips__ = tuple()
-        self.__pips_left__.clear()
-        self.__turn_moves__.clear()
+        self.__turn_history__.clear()
 
-    def can_auto_end(self) -> bool:
-        """True si hay pips restantes pero no existe ninguna jugada legal."""
-        return len(self.__pips_left__) > 0 and not self.has_any_move()
+    # utilidades opcionales ya usadas en CLI/tests
+    def turn_history(self):
+        return tuple(self.__turn_history__)
 
     def auto_end_turn(self) -> bool:
         """
-        Si no hay jugadas legales con los pips restantes, consume los pips y cierra el turno.
-        Retorna True si se cerró automáticamente, False en caso contrario.
+        Si no hay jugadas legales o no hay pips, cierra el turno automáticamente.
+        Devuelve True si rotó, False si aún hay jugadas.
         """
-        if not self.can_auto_end():
-            return False
-        self.__pips_left__.clear()
-        self.end_turn()
-        return True
-
-    def current_player_label(self) -> str:
-        """Nombre y color del jugador actual (útil para CLI)."""
-        cp = self.current_player()
-        if cp is None:
-            return "N/A"
-        name = cp.get_name() if hasattr(cp, "get_name") else getattr(cp, "__name__", "?")
-        color = cp.get_color() if hasattr(cp, "get_color") else getattr(cp, "__color__", "?")
-        return f"{name} ({color})"
-
-    # historial del turno
-    def turn_history(self) -> list[tuple[int, int, int]]:
-        """Devuelve la lista [(origin, pip, dest)] aplicada en el turno actual."""
-        return list(self.__turn_moves__)
-
-    def to_dict(self) -> dict:
-        """Exporta el estado mínimo necesario para reanudar la partida."""
-        return {
-            "board": [self.__board__.get_point(i) for i in range(24)],
-            "players": [{"name": p.get_name(), "color": p.get_color()} for p in self.__players__],
-            "current_index": int(self.__current_player_index__),
-            "last_roll": list(self.__last_roll__) if self.__last_roll__ is not None else None,
-            "pips": list(self.__pips__),
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "BackgammonGame":
-        """Crea un juego desde un dict generado por to_dict()."""
-        g = cls()
-        # reconstruir jugadores
-        g.__players__.clear()
-        for p in data.get("players", []):
-            g.add_player(p["name"], p["color"])
-        # índice de turno
-        g.__current_player_index__ = int(data.get("current_index", 0))
-        # tablero
-        board_points = data.get("board", [0]*24)
-        for i, v in enumerate(board_points):
-            g.__board__.set_point(i, int(v))
-        # tirada + pips
-        last_roll = data.get("last_roll", None)
-        g.__last_roll__ = tuple(last_roll) if last_roll is not None else None
-        g.__pips__ = tuple(data.get("pips", []))
-        return g
+        if not self.__pips__ or not self.has_any_move():
+            # sin pips o sin jugadas → cerrar
+            if not self.is_turn_over():
+                # Si quedan pips pero no hay jugadas, los descartamos (regla simplificada)
+                self.__pips__ = tuple()
+            self.end_turn()
+            return True
+        return False

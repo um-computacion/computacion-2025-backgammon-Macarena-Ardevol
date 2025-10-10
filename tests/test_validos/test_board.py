@@ -67,5 +67,17 @@ class TestBoardValidos(unittest.TestCase):
         self.assertEqual(board.get_point(7), 2)
         self.assertEqual(board.get_point(6), 1)
 
+    def test_board_move_hit_envia_a_barra(self):
+        b = Board()
+        b.setup_initial()
+        # El destino (9) debe tener un blot negro (-1) para que WHITE haga hit al llegar
+        b.set_point(9, -1)        
+        self.assertEqual(b.get_point(12), 5)  # origen blanco con fichas
+        dest = b.move(12, 3, Board.WHITE)     # 12 - 3 = 9
+        self.assertEqual(dest, 9)
+        # Ahora en 9 hay blancas (>0) y la negra golpeada fue a la barra negra
+        self.assertGreater(b.get_point(9), 0)
+        self.assertEqual(b.bar_count(Board.BLACK), 1)
+
 if __name__ == "__main__":
     unittest.main()
