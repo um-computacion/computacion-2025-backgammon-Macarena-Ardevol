@@ -6,11 +6,11 @@ class Board:
 
     def __init__(self):
         self.__points__ = [0] * self.NUM_POINTS
-        # contadores de barra (no se incluyen en count_total())
+        # Barra por color (no cuenta en count_total)
         self.__white_bar__ = 0
         self.__black_bar__ = 0
 
-    # --- getters auxiliares existentes/previos ---
+    # ---------- utilidades básicas ----------
     def num_points(self) -> int:
         return self.NUM_POINTS
 
@@ -29,14 +29,14 @@ class Board:
         self.__points__[idx] = int(value)
 
     def count_total(self, color: int) -> int:
-        """Total de fichas de ese color en el tablero (excluye barra)."""
+        """Total de fichas del color en los 24 puntos (excluye barra)."""
         if color == self.WHITE:
             return sum(v for v in self.__points__ if v > 0)
         elif color == self.BLACK:
             return sum(-v for v in self.__points__ if v < 0)
         raise ValueError("Color inválido")
 
-    # NUEVO: barra
+    # ---------- barra ----------
     def bar_count(self, color: int) -> int:
         if color == self.WHITE:
             return self.__white_bar__
@@ -52,18 +52,30 @@ class Board:
         else:
             raise ValueError("Color inválido")
 
-    # --- setup inicial que ya usábamos ---
+    def _dec_bar(self, color: int) -> None:
+        if color == self.WHITE:
+            if self.__white_bar__ <= 0:
+                raise ValueError("Barra blanca vacía")
+            self.__white_bar__ -= 1
+        elif color == self.BLACK:
+            if self.__black_bar__ <= 0:
+                raise ValueError("Barra negra vacía")
+            self.__black_bar__ -= 1
+        else:
+            raise ValueError("Color inválido")
+
+    # ---------- setup ----------
     def setup_initial(self) -> None:
         P = [0] * 24
         # Blancas: 24(=idx 23):2, 13(12):5, 8(7):3, 6(5):5
-        P[23] = 2; P[12] = 5; P[7] = 3; P[5] = 5
+        P[23] = 2; P[12] = 5; P[7]  = 3; P[5]  = 5
         # Negras: 1(0):-2, 12(11):-5, 17(16):-3, 19(18):-5
-        P[0] = -2; P[11] = -5; P[16] = -3; P[18] = -5
+        P[0]  = -2; P[11] = -5; P[16] = -3; P[18] = -5
         self.__points__ = P
         self.__white_bar__ = 0
         self.__black_bar__ = 0
 
-    # --- utilidades que ya veníamos usando en tests ---
+    # ---------- consultas de punto ----------
     def owner_at(self, idx: int) -> int:
         self.__check_index__(idx)
         v = self.__points__[idx]
@@ -73,51 +85,51 @@ class Board:
 
     def count_at(self, idx: int) -> int:
         self.__check_index__(idx)
-        v = self.__points__[idx]
-        return abs(v)
+        return abs(self.__points__[idx])
 
     def is_blocked(self, idx: int, mover_color: int) -> bool:
         """Punto bloqueado si tiene 2+ fichas del rival."""
         self.__check_index__(idx)
-        own = self.WHITE if mover_color == self.WHITE else self.BLACK
-        opp = self.BLACK if own == self.WHITE else self.WHITE
+        if mover_color not in (self.WHITE, self.BLACK):
+            raise ValueError("Color inválido")
         v = self.__points__[idx]
-        # bloqueado si hay 2+ del rival
-        return (v >= 2 and opp == self.WHITE) or (v <= -2 and opp == self.BLACK)
+        if mover_color == self.WHITE:
+            # bloquean negras con 2+
+            return v <= -2
+        else:
+            # bloquean blancas con 2+
+            return v >= 2
 
+    # ---------- destinos, movimiento normal ----------
     def dest_from(self, origin: int, pip: int, mover_color: int) -> int:
         self.__check_index__(origin)
         if not isinstance(pip, int) or pip <= 0:
             raise ValueError("Pip inválido")
         if mover_color not in (self.WHITE, self.BLACK):
             raise ValueError("Color inválido")
-        if mover_color == self.WHITE:
-            dest = origin - pip
-        else:
-            dest = origin + pip
+        dest = origin - pip if mover_color == self.WHITE else origin + pip
         if not (0 <= dest < self.NUM_POINTS):
             raise ValueError("Destino fuera de tablero")
         return dest
 
     def can_move(self, origin: int, pip: int, mover_color: int) -> bool:
-        """Permite mover a vacío, propio o blot rival (1). Bloqueado (rival≥2) = False."""
-        self.__check_index__(origin)
         if mover_color not in (self.WHITE, self.BLACK):
             raise ValueError("Color inválido")
+        # si hay fichas en barra, no se puede mover normal
+        if self.bar_count(mover_color) > 0:
+            return False
         # Debe haber ficha propia en origin
-        if self.owner_at(origin) != mover_color or self.count_at(origin) <= 0:
+        if self.owner_at(origin) != mover_color or self.count_at(origin) == 0:
             return False
         try:
             dest = self.dest_from(origin, pip, mover_color)
         except Exception:
             return False
-        # bloqueado por 2+ del rival
         if self.is_blocked(dest, mover_color):
             return False
-        return True  # vacío, propio o blot rival (1) son válidos
+        return True  # vacío, propio o blot rival (1)
 
     def move(self, origin: int, pip: int, mover_color: int) -> int:
-        """Aplica el movimiento y gestiona 'hit' si el destino tiene 1 del rival."""
         if not self.can_move(origin, pip, mover_color):
             raise ValueError("Movimiento inválido para el estado actual del tablero")
         dest = self.dest_from(origin, pip, mover_color)
@@ -133,17 +145,79 @@ class Board:
         dv = self.__points__[dest]
         if mover_color == self.WHITE:
             if dv == -1:
-                # golpear negra -> va a barra negra
                 self.__points__[dest] = 1
                 self._inc_bar(self.BLACK)
             else:
                 self.__points__[dest] = dv + 1
         else:
             if dv == 1:
-                # golpear blanca -> va a barra blanca
                 self.__points__[dest] = -1
                 self._inc_bar(self.WHITE)
             else:
                 self.__points__[dest] = dv - 1
 
+        return dest
+
+    # ---------- entrada desde barra ----------
+    def entry_index(self, pip: int, color: int) -> int:
+        """
+        Punto de entrada desde barra según color y pip.
+        Convención de índices 0..23:
+          - WHITE entra en el home de BLACK (top), que es 23..18.
+            Fórmula: dest = 24 - pip  -> índices 23..18
+          - BLACK entra en el home de WHITE (bottom), que es 0..5.
+            Fórmula: dest = pip - 1   -> índices 0..5
+        """
+        if not isinstance(pip, int) or pip <= 0:
+            raise ValueError("Pip inválido")
+        if color == self.WHITE:
+            dest = 24 - pip
+        elif color == self.BLACK:
+            dest = pip - 1
+        else:
+            raise ValueError("Color inválido")
+        if not (0 <= dest < self.NUM_POINTS):
+            raise ValueError("Destino fuera de tablero")
+        return dest
+
+    def can_enter(self, pip: int, color: int) -> bool:
+        """Se puede entrar si hay ficha en barra y el punto de entrada no está bloqueado."""
+        if color not in (self.WHITE, self.BLACK):
+            raise ValueError("Color inválido")
+        if self.bar_count(color) <= 0:
+            return False
+        try:
+            dest = self.entry_index(pip, color)
+        except Exception:
+            return False
+        if self.is_blocked(dest, color):
+            return False
+        return True
+
+    def enter_from_bar(self, pip: int, color: int) -> int:
+        """
+        Entra una ficha desde la barra usando 'pip'.
+        Captura si hay blot rival en el destino.
+        Devuelve el índice destino.
+        """
+        if not self.can_enter(pip, color):
+            raise ValueError("No se puede entrar con ese pip/color")
+        dest = self.entry_index(pip, color)
+        dv = self.__points__[dest]
+
+        # sale de barra
+        self._dec_bar(color)
+
+        if color == self.WHITE:
+            if dv == -1:
+                self.__points__[dest] = 1
+                self._inc_bar(self.BLACK)
+            else:
+                self.__points__[dest] = dv + 1
+        else:
+            if dv == 1:
+                self.__points__[dest] = -1
+                self._inc_bar(self.WHITE)
+            else:
+                self.__points__[dest] = dv - 1
         return dest
