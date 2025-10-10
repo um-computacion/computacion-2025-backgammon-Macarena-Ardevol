@@ -6,138 +6,144 @@ class Board:
 
     def __init__(self):
         self.__points__ = [0] * self.NUM_POINTS
+        # contadores de barra (no se incluyen en count_total())
+        self.__white_bar__ = 0
+        self.__black_bar__ = 0
 
+    # --- getters auxiliares existentes/previos ---
     def num_points(self) -> int:
-        return len(self.__points__)
+        return self.NUM_POINTS
 
-    def get_point(self, index: int) -> int:
-        if not (0 <= index < self.NUM_POINTS):
-            raise ValueError("Índice de punto fuera de rango")
-        return self.__points__[index]
+    def __check_index__(self, idx: int):
+        if not isinstance(idx, int):
+            raise TypeError("El índice debe ser int")
+        if not (0 <= idx < self.NUM_POINTS):
+            raise ValueError("Índice fuera de rango")
 
-    def set_point(self, index: int, value: int) -> None:
-        if not (0 <= index < self.NUM_POINTS):
-            raise ValueError("Índice de punto fuera de rango")
-        self.__points__[index] = value
+    def get_point(self, idx: int) -> int:
+        self.__check_index__(idx)
+        return self.__points__[idx]
 
-    def setup_initial(self) -> None:
-        """Coloca las fichas en posiciones iniciales estándar."""
-        self.__points__ = [0] * self.NUM_POINTS
-        # Blancas (positivas)
-        self.__points__[23] = 2 * self.WHITE   # 24-point
-        self.__points__[12] = 5 * self.WHITE   # 13-point
-        self.__points__[7]  = 3 * self.WHITE   # 8-point
-        self.__points__[5]  = 5 * self.WHITE   # 6-point
-        # Negras (negativas)
-        self.__points__[0]  = 2 * self.BLACK   # 1-point
-        self.__points__[11] = 5 * self.BLACK   # 12-point
-        self.__points__[16] = 3 * self.BLACK   # 17-point
-        self.__points__[18] = 5 * self.BLACK   # 19-point
+    def set_point(self, idx: int, value: int) -> None:
+        self.__check_index__(idx)
+        self.__points__[idx] = int(value)
 
     def count_total(self, color: int) -> int:
-        """Cantidad de fichas totales de un color (WHITE=+1, BLACK=-1)."""
+        """Total de fichas de ese color en el tablero (excluye barra)."""
         if color == self.WHITE:
             return sum(v for v in self.__points__ if v > 0)
-        if color == self.BLACK:
-            return -sum(v for v in self.__points__ if v < 0)
+        elif color == self.BLACK:
+            return sum(-v for v in self.__points__ if v < 0)
         raise ValueError("Color inválido")
 
-    # Helpers de movimiento y consulta 
+    # NUEVO: barra
+    def bar_count(self, color: int) -> int:
+        if color == self.WHITE:
+            return self.__white_bar__
+        elif color == self.BLACK:
+            return self.__black_bar__
+        raise ValueError("Color inválido")
 
-    def _validate_index(self, index: int) -> None:
-        if not (0 <= index < self.NUM_POINTS):
-            raise ValueError("Índice de punto fuera de rango")
+    def _inc_bar(self, color: int) -> None:
+        if color == self.WHITE:
+            self.__white_bar__ += 1
+        elif color == self.BLACK:
+            self.__black_bar__ += 1
+        else:
+            raise ValueError("Color inválido")
 
-    def _validate_color(self, color: int) -> None:
-        if color not in (self.WHITE, self.BLACK):
-            raise ValueError("Color inválido (use Board.WHITE o Board.BLACK)")
+    # --- setup inicial que ya usábamos ---
+    def setup_initial(self) -> None:
+        P = [0] * 24
+        # Blancas: 24(=idx 23):2, 13(12):5, 8(7):3, 6(5):5
+        P[23] = 2; P[12] = 5; P[7] = 3; P[5] = 5
+        # Negras: 1(0):-2, 12(11):-5, 17(16):-3, 19(18):-5
+        P[0] = -2; P[11] = -5; P[16] = -3; P[18] = -5
+        self.__points__ = P
+        self.__white_bar__ = 0
+        self.__black_bar__ = 0
 
-    def owner_at(self, index: int) -> int:
-        """Devuelve Board.WHITE, Board.BLACK o 0 si el punto está vacío."""
-        self._validate_index(index)
-        v = self.__points__[index]
-        if v > 0:
-            return self.WHITE
-        if v < 0:
-            return self.BLACK
+    # --- utilidades que ya veníamos usando en tests ---
+    def owner_at(self, idx: int) -> int:
+        self.__check_index__(idx)
+        v = self.__points__[idx]
+        if v > 0: return self.WHITE
+        if v < 0: return self.BLACK
         return 0
 
-    def count_at(self, index: int) -> int:
-        """Cantidad de fichas (valor absoluto) en el punto."""
-        self._validate_index(index)
-        return abs(self.__points__[index])
+    def count_at(self, idx: int) -> int:
+        self.__check_index__(idx)
+        v = self.__points__[idx]
+        return abs(v)
 
-    def is_blocked(self, index: int, mover_color: int) -> bool:
-        """True si el punto está bloqueado para 'mover_color' (2+ fichas rivales)."""
-        self._validate_index(index)
-        self._validate_color(mover_color)
-        owner = self.owner_at(index)
-        if owner == 0 or owner == mover_color:
-            return False
-        return self.count_at(index) >= 2
+    def is_blocked(self, idx: int, mover_color: int) -> bool:
+        """Punto bloqueado si tiene 2+ fichas del rival."""
+        self.__check_index__(idx)
+        own = self.WHITE if mover_color == self.WHITE else self.BLACK
+        opp = self.BLACK if own == self.WHITE else self.WHITE
+        v = self.__points__[idx]
+        # bloqueado si hay 2+ del rival
+        return (v >= 2 and opp == self.WHITE) or (v <= -2 and opp == self.BLACK)
 
     def dest_from(self, origin: int, pip: int, mover_color: int) -> int:
-        """
-        Calcula destino desde 'origin' con 'pip' según el color:
-        - WHITE: decrece índices (hacia 0)
-        - BLACK: crece índices (hacia 23)
-        Lanza ValueError si queda fuera del tablero o parámetros inválidos.
-        """
-        self._validate_index(origin)
-        self._validate_color(mover_color)
+        self.__check_index__(origin)
         if not isinstance(pip, int) or pip <= 0:
-            raise ValueError("pip inválido (debe ser entero positivo)")
-        dest = origin - pip if mover_color == self.WHITE else origin + pip
+            raise ValueError("Pip inválido")
+        if mover_color not in (self.WHITE, self.BLACK):
+            raise ValueError("Color inválido")
+        if mover_color == self.WHITE:
+            dest = origin - pip
+        else:
+            dest = origin + pip
         if not (0 <= dest < self.NUM_POINTS):
-            raise ValueError("Destino fuera del tablero")
+            raise ValueError("Destino fuera de tablero")
         return dest
 
     def can_move(self, origin: int, pip: int, mover_color: int) -> bool:
-        """Reglas básicas: propia en origen, destino en tablero, no bloqueado, vacío o propio."""
+        """Permite mover a vacío, propio o blot rival (1). Bloqueado (rival≥2) = False."""
+        self.__check_index__(origin)
+        if mover_color not in (self.WHITE, self.BLACK):
+            raise ValueError("Color inválido")
+        # Debe haber ficha propia en origin
+        if self.owner_at(origin) != mover_color or self.count_at(origin) <= 0:
+            return False
         try:
             dest = self.dest_from(origin, pip, mover_color)
         except Exception:
             return False
-        if self.owner_at(origin) != mover_color or self.count_at(origin) == 0:
-            return False
+        # bloqueado por 2+ del rival
         if self.is_blocked(dest, mover_color):
             return False
-        owner_dest = self.owner_at(dest)
-        return owner_dest in (0, mover_color)
+        return True  # vacío, propio o blot rival (1) son válidos
 
     def move(self, origin: int, pip: int, mover_color: int) -> int:
-        """Aplica el movimiento; lanza ValueError si no es válido. Retorna el destino."""
+        """Aplica el movimiento y gestiona 'hit' si el destino tiene 1 del rival."""
         if not self.can_move(origin, pip, mover_color):
             raise ValueError("Movimiento inválido para el estado actual del tablero")
         dest = self.dest_from(origin, pip, mover_color)
-        self.__points__[origin] -= mover_color
-        self.__points__[dest] += mover_color
+
+        # Quitar del origen
+        v = self.__points__[origin]
+        if mover_color == self.WHITE:
+            self.__points__[origin] = v - 1
+        else:
+            self.__points__[origin] = v + 1
+
+        # Gestionar destino (hit si blot rival)
+        dv = self.__points__[dest]
+        if mover_color == self.WHITE:
+            if dv == -1:
+                # golpear negra -> va a barra negra
+                self.__points__[dest] = 1
+                self._inc_bar(self.BLACK)
+            else:
+                self.__points__[dest] = dv + 1
+        else:
+            if dv == 1:
+                # golpear blanca -> va a barra blanca
+                self.__points__[dest] = -1
+                self._inc_bar(self.WHITE)
+            else:
+                self.__points__[dest] = dv - 1
+
         return dest
-
-    # listado de movimientos posibles (sin 'hit' ni 'bar')
-
-    def legal_moves(self, color: int, pips: list[int]) -> list[tuple[int, int, int]]:
-        """
-        Devuelve una lista de tuplas (origin, pip, dest) posibles con los pips dados.
-        No duplica el mismo (origin,pip,dest) si hay pips repetidos.
-        """
-        self._validate_color(color)
-        moves: list[tuple[int, int, int]] = []
-        unique_pips = sorted(set(pips))
-        for origin in range(self.NUM_POINTS):
-            if self.owner_at(origin) != color or self.count_at(origin) == 0:
-                continue
-            for pip in unique_pips:
-                try:
-                    dest = self.dest_from(origin, pip, color)
-                except ValueError:
-                    continue
-                if not self.is_blocked(dest, color):
-                    owner_dest = self.owner_at(dest)
-                    if owner_dest in (0, color):
-                        moves.append((origin, pip, dest))
-        return moves
-
-    def has_any_move(self, color: int, pips: list[int]) -> bool:
-        """True si existe al menos un movimiento legal con esos pips."""
-        return len(self.legal_moves(color, pips)) > 0
