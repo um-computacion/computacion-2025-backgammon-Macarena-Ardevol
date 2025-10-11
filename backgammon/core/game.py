@@ -5,16 +5,14 @@ from backgammon.core.dice import Dice
 
 class BackgammonGame:
     """Clase principal del juego Backgammon."""
-
     def __init__(self):
         self.__board__ = Board()
         self.__players__ = []
         self.__current_player_index__ = 0
         self.__dice__ = Dice()
-        self.__last_roll__ = None          # tuple[int,int] | None
-        self.__pips__ = tuple()            # tuple[int,...]
-        self.__turn_history__ = []         # [(origin, dest, color, pip)]
-        self.__turn_started__ = False      # para validar “hay tirada activa”
+        self.__last_roll__ = None
+        self.__pips__ = tuple()
+        self.__turn_history__ = []  # [(origin, dest, color, pip)]
 
     # ---------- Setup / acceso ----------
     def add_player(self, name: str, color: str) -> None:
@@ -46,7 +44,6 @@ class BackgammonGame:
         a, b = self.__last_roll__
         self.__pips__ = (a, a, a, a) if a == b else (a, b)
         self.__turn_history__.clear()
-        self.__turn_started__ = True
         return self.__last_roll__
 
     def last_roll(self) -> tuple[int, int] | None:
@@ -58,21 +55,19 @@ class BackgammonGame:
     def is_turn_over(self) -> bool:
         return len(self.__pips__) == 0
 
+    def next_turn(self) -> None:
+        """Alias simple para rotar turno (compatibilidad con tests)."""
+        if self.__players__:
+            self.__current_player_index__ = (self.__current_player_index__ + 1) % len(self.__players__)
+
     def end_turn(self) -> None:
         if not self.is_turn_over():
             raise ValueError("Aún quedan pips por jugar")
-        if self.__players__:
-            self.__current_player_index__ = (self.__current_player_index__ + 1) % len(self.__players__)
+        self.next_turn()
         # limpiar estado de turno
         self.__last_roll__ = None
         self.__pips__ = tuple()
         self.__turn_history__.clear()
-        self.__turn_started__ = False
-
-    def next_turn(self) -> None:
-        """Alias histórico usado en algunos tests: rota el jugador sin validar pips."""
-        if self.__players__:
-            self.__current_player_index__ = (self.__current_player_index__ + 1) % len(self.__players__)
 
     def auto_end_turn(self) -> bool:
         """Rota el turno automáticamente si no hay jugadas legales con los pips actuales."""
@@ -89,8 +84,7 @@ class BackgammonGame:
     def _current_color_int(self) -> int:
         p = self.current_player()
         if p is None:
-            return Board.WHITE  # por defecto, no rompe
-        # Usar getter si está disponible; si no, caer a atributo interno o público
+            return Board.WHITE
         if hasattr(p, "get_color") and callable(p.get_color):
             color = p.get_color()
         else:
@@ -112,7 +106,7 @@ class BackgammonGame:
         except Exception:
             return False
 
-    # Alias esperado por algunos tests
+    # Alias de conveniencia (compatibilidad con tests que preguntan por can_enter)
     def can_enter(self, pip: int) -> bool:
         return self.can_enter_from_bar(pip)
 
@@ -128,7 +122,7 @@ class BackgammonGame:
         self.__turn_history__.append((-1, dest, color, pip))
         return dest
 
-    # ---------- Movimientos ----------
+    # ---------- Movimientos normales ----------
     def legal_moves(self):
         """Devuelve una lista de movimientos legales como (origin, dest, pip).
         Si hay fichas en barra, solo lista entradas desde barra."""
@@ -140,15 +134,14 @@ class BackgammonGame:
 
         if self._has_pieces_on_bar(color):
             for pip in pips:
-                if self.can_enter_from_bar(pip):
-                    try:
-                        dest = self.__board__.dest_from_bar(pip, color)
+                try:
+                    if self.__board__.can_enter(pip, color):
+                        dest = self.__board__.entry_index(pip, color)
                         res.append((-1, dest, pip))
-                    except Exception:
-                        pass
+                except Exception:
+                    continue
             return res
 
-        # movimientos normales
         for origin in range(self.__board__.num_points()):
             if self.__board__.owner_at(origin) != color:
                 continue
@@ -167,13 +160,23 @@ class BackgammonGame:
         return len(self.legal_moves()) > 0
 
     def can_play_move(self, origin: int, pip: int) -> bool:
-        """Devuelve False si no hay tirada activa o si el movimiento no es legal."""
-        if not self.__turn_started__ or not self.__pips__:
+        """
+        Devuelve True solo si:
+        - hay pips disponibles Y 'pip' pertenece a los pips del turno, y
+        - si hay fichas en barra, el origen es -1 y puede entrar con ese pip, o
+        - si no hay fichas en barra, el movimiento normal es legal en el tablero.
+        """
+        # 1) Debe existir el pip en el turno actual (cubre caso "sin start_turn")
+        if pip not in self.__pips__:
             return False
+
         color = self._current_color_int()
-        # si hay fichas en barra, sólo se permiten entradas desde barra
+
+        # 2) Si hay fichas en barra, únicamente se permite entrar desde barra
         if self._has_pieces_on_bar(color):
             return origin == -1 and self.can_enter_from_bar(pip)
+
+        # 3) Movimiento normal
         try:
             return self.__board__.can_move(origin, pip, color)
         except Exception:
@@ -182,25 +185,17 @@ class BackgammonGame:
     def apply_move(self, origin: int, pip: int) -> int:
         """Aplica un movimiento usando `pip`. Devuelve el índice destino."""
         color = self._current_color_int()
-
-        if not self.__turn_started__:
-            raise ValueError("No hay tirada activa")
-
-        # si hay fichas en barra, obligar entrada
         if self._has_pieces_on_bar(color) and origin != -1:
             raise ValueError("Debes reingresar desde la barra antes de mover otras fichas")
 
-        # consumir pip si el movimiento es válido
         pips = list(self.__pips__)
         if pip not in pips:
             raise ValueError("Pip no disponible en este turno")
 
         if origin == -1:
-            # entrada desde barra
             dest = self.enter_from_bar(pip)
             return dest
 
-        # movimiento normal
         if not self.__board__.can_move(origin, pip, color):
             raise ValueError("Movimiento inválido para el estado actual del tablero")
 
@@ -210,51 +205,47 @@ class BackgammonGame:
         self.__turn_history__.append((origin, dest, color, pip))
         return dest
 
-    # ---------- Serialización (para guardado/carga) ----------
+    # ---------- Serialización ----------
     def to_dict(self) -> dict:
-        """Estado serializable de la partida (para JSON)."""
-        # Jugadores
-        players = []
-        for p in self.__players__:
-            if hasattr(p, "get_name") and callable(p.get_name):
-                name = p.get_name()
-            else:
-                name = getattr(p, "_Player__name__", getattr(p, "name", ""))
-            if hasattr(p, "get_color") and callable(p.get_color):
-                color = p.get_color()
-            else:
-                color = getattr(p, "_Player__color__", getattr(p, "color", "white"))
-            players.append({"name": name, "color": color})
-
-        # Tablero (usar snapshot público)
-        snap = self.__board__.snapshot()
-
         return {
-            "players": players,
-            "current_player_index": self.__current_player_index__,
-            "board": snap,
-            "last_roll": list(self.__last_roll__) if self.__last_roll__ else None,
+            "board": self.__board__.to_dict(),
+            "players": [
+                {
+                    "name": getattr(p, "get_name", lambda: getattr(p, "_Player__name__", getattr(p, "name", "")))(),
+                    "color": getattr(p, "get_color", lambda: getattr(p, "_Player__color__", getattr(p, "color", "")))(),
+                }
+                for p in self.__players__
+            ],
+            "current_player_index": int(self.__current_player_index__),
+            "last_roll": tuple(self.__last_roll__) if self.__last_roll__ is not None else None,
             "pips": list(self.__pips__),
-            "turn_history": list(self.__turn_history__),
-            "turn_started": bool(self.__turn_started__),
+            "turn_history": [
+                {"origin": o, "dest": d, "color": c, "pip": pip}
+                for (o, d, c, pip) in self.__turn_history__
+            ],
         }
 
-    @staticmethod
-    def from_dict(data: dict) -> "BackgammonGame":
-        """Crea una partida desde un dict (complemento de to_dict)."""
-        g = BackgammonGame()
-        # jugadores
-        for pl in data.get("players", []):
-            g.add_player(pl.get("name", ""), pl.get("color", "white"))
-        # índice actual
+    @classmethod
+    def from_dict(cls, data: dict) -> "BackgammonGame":
+        g = cls()
+        # Board
+        g.__board__ = Board.from_dict(data["board"])
+        # Players
+        g.__players__.clear()
+        for pd in data.get("players", []):
+            g.add_player(pd.get("name", ""), pd.get("color", "white"))
         g.__current_player_index__ = int(data.get("current_player_index", 0))
-        # tablero
-        board_snap = data.get("board", {})
-        g.__board__.restore(board_snap)
-        # turno
+        # Turno
         lr = data.get("last_roll", None)
         g.__last_roll__ = tuple(lr) if lr is not None else None
         g.__pips__ = tuple(int(x) for x in data.get("pips", []))
-        g.__turn_history__ = [tuple(x) for x in data.get("turn_history", [])]
-        g.__turn_started__ = bool(data.get("turn_started", False))
+        # Historial
+        g.__turn_history__.clear()
+        for md in data.get("turn_history", []):
+            g.__turn_history__.append((
+                int(md.get("origin", -1)),
+                int(md.get("dest", 0)),
+                int(md.get("color", Board.WHITE)),
+                int(md.get("pip", 1)),
+            ))
         return g

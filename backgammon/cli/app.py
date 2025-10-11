@@ -1,13 +1,11 @@
-import argparse
+import argparse, json
+from pathlib import Path
 from backgammon.core.game import BackgammonGame
 from backgammon.core.board import Board
 
+
 def format_board_summary(board) -> str:
-    # Resumen corto de puntos iniciales clave
-    spots = {
-        "W": [23, 12, 7, 5],
-        "B": [0, 11, 16, 18],
-    }
+    spots = {"W": [23, 12, 7, 5], "B": [0, 11, 16, 18]}
     lines = ["Resumen tablero:"]
     for label, idxs in spots.items():
         vals = [board.get_point(i) for i in idxs]
@@ -19,14 +17,12 @@ def _parse_roll(roll_str: str) -> tuple[int, int]:
     if roll_str is None:
         raise ValueError("Roll no provisto (interno)")
     if roll_str == "":
-        # requerido por tests de errores
         raise ValueError("Formato de --roll vacío")
     parts = roll_str.split(",")
     if len(parts) != 2:
         raise ValueError("Formato de --roll inválido (usar a,b)")
     try:
-        a = int(parts[0].strip())
-        b = int(parts[1].strip())
+        a = int(parts[0].strip()); b = int(parts[1].strip())
     except Exception:
         raise ValueError("Formato de --roll inválido (deben ser enteros)")
     if not (1 <= a <= 6 and 1 <= b <= 6):
@@ -35,15 +31,13 @@ def _parse_roll(roll_str: str) -> tuple[int, int]:
 
 
 def _parse_move(move_str: str) -> tuple[int, int]:
-    # "origin,pip"
     if move_str is None or move_str == "":
         raise ValueError("Formato de --move vacío")
     parts = move_str.split(",")
     if len(parts) != 2:
         raise ValueError("Formato de --move inválido (usar origin,pip)")
     try:
-        origin = int(parts[0].strip())
-        pip = int(parts[1].strip())
+        origin = int(parts[0].strip()); pip = int(parts[1].strip())
     except Exception:
         raise ValueError("Formato de --move inválido (deben ser enteros)")
     if pip <= 0:
@@ -85,11 +79,20 @@ def main(argv=None):
     parser.add_argument("--auto-end-turn", action="store_true", help="Rota si no hay jugadas posibles")
     parser.add_argument("--history", action="store_true", help="Muestra el historial del turno")
     parser.add_argument("--status", action="store_true", help="Muestra estado resumido")
+    # NUEVO: persistencia
+    parser.add_argument("--save", type=str, help="Guarda estado en JSON (ej: saves/partida.json)")
+    parser.add_argument("--load", type=str, help="Carga estado desde JSON")
     args = parser.parse_args(argv)
 
-    game = BackgammonGame()
-    game.add_player("White", "white")
-    game.add_player("Black", "black")
+    if args.load:
+        path = Path(args.load)
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        game = BackgammonGame.from_dict(data)
+    else:
+        game = BackgammonGame()
+        game.add_player("White", "white")
+        game.add_player("Black", "black")
 
     if args.setup:
         game.setup_board()
@@ -97,12 +100,13 @@ def main(argv=None):
 
     # Tirada (fija o automática)
     if args.roll is not None:
-        roll = _parse_roll(args.roll)  # puede lanzar ValueError (tests lo esperan)
+        roll = _parse_roll(args.roll)
         game.start_turn(roll)
     else:
-        game.start_turn()
+        # Si se cargó partida con turno activo, respetamos; si no, tiramos
+        if game.last_roll() is None and game.pips() == ():
+            game.start_turn()
 
-    # Listar movimientos (antes de aplicar)
     if args.list_moves:
         moves = game.legal_moves()
         print("Dados:", game.last_roll())
@@ -112,15 +116,12 @@ def main(argv=None):
             o_label = "bar" if origin == -1 else str(origin)
             print(f"  {o_label}->{dest} (pip {pip})")
 
-    # Reingreso desde barra (opcional)
     if args.enter is not None:
         pip = _parse_enter(args.enter)
-        # preferimos API unificada: apply_move(-1, pip)
         dest = game.apply_move(-1, pip)
         print(f"Enter: -1->{dest} (pip {pip})")
         print("Pips:", game.pips())
 
-    # Aplicar movimientos secuenciales
     if args.move:
         for mv in args.move:
             origin, pip = _parse_move(mv)
@@ -128,7 +129,6 @@ def main(argv=None):
             print(f"Move: {origin}->{dest} (pip {pip})")
             print("Pips:", game.pips())
 
-    # Historial del turno
     if args.history:
         print("History:")
         for (o, d, color, pip) in game.turn_history():
@@ -136,14 +136,12 @@ def main(argv=None):
             who = "W" if color == Board.WHITE else "B"
             print(f"  {who}: {o_label}->{d} (pip {pip})")
 
-    # Estado (resumen)
     if args.status:
         print("Estado:")
         print("Jugador:", _player_color_label(game))
         print("Dados:", game.last_roll())
         print("Pips:", game.pips())
 
-    # Fin de turno
     if args.end_turn:
         game.end_turn()
         print("Turno finalizado.")
@@ -151,7 +149,6 @@ def main(argv=None):
         print("Dados:", game.last_roll())
         print("Pips:", game.pips())
 
-    # Auto fin si no hay jugadas
     if args.auto_end_turn:
         if game.auto_end_turn():
             print("Sin jugadas → turno rotado.")
@@ -161,12 +158,19 @@ def main(argv=None):
         print("Dados:", game.last_roll())
         print("Pips:", game.pips())
 
-    # Salida estándar al final (coherente con tests previos)
-    if not (args.end_turn or args.auto_end_turn or args.history or args.status or args.list_moves or args.move or args.enter):
-        print(f"Datos: {game.last_roll()}")
+    # Guardar si se pidió
+    if args.save:
+        path = Path(args.save)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(game.to_dict(), f, ensure_ascii=False, indent=2)
+        print(f"Guardado en: {path}")
+
+    # Salida mínima coherente
+    if not (args.end_turn or args.auto_end_turn or args.history or args.status or args.list_moves or args.move or args.enter or args.save):
+        print(f"Dados: {game.last_roll()}")
         print(f"Pips: {game.pips()}")
     else:
-        # Siempre mostrar el estado final mínimo al terminar
         print("Dados:", game.last_roll())
         print("Pips:", game.pips())
 

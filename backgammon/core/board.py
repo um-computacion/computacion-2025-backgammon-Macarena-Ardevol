@@ -1,5 +1,5 @@
 class Board:
-    """Tablero de Backgammon: 24 puntos, barra por color y reglas mínimas de movimiento/captura."""
+    """Tablero de Backgammon: 24 puntos y administración de fichas."""
     NUM_POINTS = 24
     WHITE = 1
     BLACK = -1
@@ -180,10 +180,6 @@ class Board:
             raise ValueError("Destino fuera de tablero")
         return dest
 
-    def dest_from_bar(self, pip: int, color: int) -> int:
-        """Alias utilitario: destino de entrada desde barra (peek)."""
-        return self.entry_index(pip, color)
-
     def can_enter(self, pip: int, color: int) -> bool:
         """Se puede entrar si hay ficha en barra y el punto de entrada no está bloqueado."""
         if color not in (self.WHITE, self.BLACK):
@@ -226,22 +222,32 @@ class Board:
                 self.__points__[dest] = dv - 1
         return dest
 
-    # ---------- snapshot/restore para guardado ----------
-    def snapshot(self) -> dict:
-        """Devuelve un dict con el estado interno (puntos y barras)."""
+    # ---------- helpers de home (para futuras etapas) ----------
+    def is_in_white_home(self, idx: int) -> bool:
+        """Home de WHITE = 0..5"""
+        self.__check_index__(idx)
+        return 0 <= idx <= 5
+
+    def is_in_black_home(self, idx: int) -> bool:
+        """Home de BLACK = 18..23"""
+        self.__check_index__(idx)
+        return 18 <= idx <= 23
+
+    # ---------- serialización ----------
+    def to_dict(self) -> dict:
         return {
             "points": list(self.__points__),
             "white_bar": int(self.__white_bar__),
             "black_bar": int(self.__black_bar__),
         }
 
-    def restore(self, snap: dict) -> None:
-        """Restaura desde snapshot generado por snapshot()."""
-        pts = snap.get("points")
-        wb = snap.get("white_bar", 0)
-        bb = snap.get("black_bar", 0)
-        if pts is None or len(pts) != self.NUM_POINTS:
-            raise ValueError("Snapshot inválido")
-        self.__points__ = list(int(x) for x in pts)
-        self.__white_bar__ = int(wb)
-        self.__black_bar__ = int(bb)
+    @classmethod
+    def from_dict(cls, data: dict) -> "Board":
+        b = cls()
+        pts = data.get("points")
+        if not isinstance(pts, list) or len(pts) != cls.NUM_POINTS:
+            raise ValueError("points inválidos en Board.from_dict")
+        b.__points__ = [int(v) for v in pts]
+        b.__white_bar__ = int(data.get("white_bar", 0))
+        b.__black_bar__ = int(data.get("black_bar", 0))
+        return b
