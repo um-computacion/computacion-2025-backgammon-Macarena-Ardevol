@@ -3,56 +3,88 @@ from backgammon.core.game import BackgammonGame
 from backgammon.core.board import Board
 
 def format_board_summary(board) -> str:
-    spots = {"W": [23, 12, 7, 5], "B": [0, 11, 16, 18]}
+    # Resumen corto de puntos iniciales clave
+    spots = {
+        "W": [23, 12, 7, 5],
+        "B": [0, 11, 16, 18],
+    }
     lines = ["Resumen tablero:"]
     for label, idxs in spots.items():
         vals = [board.get_point(i) for i in idxs]
         lines.append(f"{label} {idxs} -> {vals}")
     return "\n".join(lines)
 
-def parse_roll(s: str) -> tuple[int, int]:
-    if s is None:
-        raise ValueError("Se esperaba un valor para --roll (formato a,b).")
-    parts = s.split(",")
+
+def _parse_roll(roll_str: str) -> tuple[int, int]:
+    if roll_str is None:
+        raise ValueError("Roll no provisto (interno)")
+    if roll_str == "":
+        # requerido por tests de errores
+        raise ValueError("Formato de --roll vacío")
+    parts = roll_str.split(",")
     if len(parts) != 2:
-        raise ValueError("Formato inválido para --roll. Use a,b")
+        raise ValueError("Formato de --roll inválido (usar a,b)")
     try:
-        a = int(parts[0]); b = int(parts[1])
+        a = int(parts[0].strip())
+        b = int(parts[1].strip())
     except Exception:
-        raise ValueError("Roll no numérico. Use enteros.")
+        raise ValueError("Formato de --roll inválido (deben ser enteros)")
     if not (1 <= a <= 6 and 1 <= b <= 6):
-        raise ValueError("Cada dado debe estar entre 1 y 6.")
+        raise ValueError("Valores de --roll fuera de rango (1..6)")
     return (a, b)
 
-def parse_move(s: str) -> tuple[int, int]:
-    parts = s.split(",")
+
+def _parse_move(move_str: str) -> tuple[int, int]:
+    # "origin,pip"
+    if move_str is None or move_str == "":
+        raise ValueError("Formato de --move vacío")
+    parts = move_str.split(",")
     if len(parts) != 2:
-        raise ValueError("Formato inválido para --move. Use origin,pip")
+        raise ValueError("Formato de --move inválido (usar origin,pip)")
     try:
-        origin = int(parts[0]); pip = int(parts[1])
+        origin = int(parts[0].strip())
+        pip = int(parts[1].strip())
     except Exception:
-        raise ValueError("Move no numérico. Use enteros.")
+        raise ValueError("Formato de --move inválido (deben ser enteros)")
     if pip <= 0:
-        raise ValueError("pip debe ser positivo.")
+        raise ValueError("Pip debe ser positivo")
     return origin, pip
 
-def _current_color_label(game: BackgammonGame) -> str:
-    cur = game.current_player()
-    if hasattr(cur, "get_color") and callable(cur.get_color):
-        return cur.get_color()
-    return getattr(cur, "_Player__color__", getattr(cur, "color", "?"))
+
+def _parse_enter(enter_str: str) -> int:
+    if enter_str is None or enter_str == "":
+        raise ValueError("Formato de --enter vacío")
+    try:
+        pip = int(enter_str.strip())
+    except Exception:
+        raise ValueError("Formato de --enter inválido (debe ser entero)")
+    if pip <= 0:
+        raise ValueError("Pip de --enter debe ser positivo")
+    return pip
+
+
+def _player_color_label(game: BackgammonGame) -> str:
+    p = game.current_player()
+    if p is None:
+        return "White"
+    if hasattr(p, "get_color") and callable(p.get_color):
+        c = p.get_color()
+    else:
+        c = getattr(p, "_Player__color__", getattr(p, "color", "white"))
+    return c
+
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="backgammon-cli")
     parser.add_argument("--setup", action="store_true", help="Inicializa el tablero estándar")
     parser.add_argument("--roll", type=str, help="Usa tirada fija a,b (ej: 3,4)")
-    parser.add_argument("--move", action="append", help="Juega un movimiento origin,pip (puede repetirse)")
-    parser.add_argument("--list-moves", action="store_true", help="Lista jugadas legales disponibles")
-    parser.add_argument("--end-turn", action="store_true", help="Finaliza el turno si no quedan pips")
-    parser.add_argument("--auto-end-turn", action="store_true", help="Cierra turno si no hay jugadas legales")
-    parser.add_argument("--history", action="store_true", help="Muestra historial del turno")
-    parser.add_argument("--status", action="store_true", help="Muestra estado actual")
-    parser.add_argument("--enter", type=str, help="Reingresa desde barra usando pip X (ej: --enter 3)")
+    parser.add_argument("--move", action="append", help="Aplica movimiento origin,pip (puede repetirse)")
+    parser.add_argument("--enter", type=str, help="Reingresar desde barra usando pip (equivale a move -1,pip)")
+    parser.add_argument("--list-moves", action="store_true", help="Lista movimientos legales")
+    parser.add_argument("--end-turn", action="store_true", help="Finaliza el turno (si no quedan pips)")
+    parser.add_argument("--auto-end-turn", action="store_true", help="Rota si no hay jugadas posibles")
+    parser.add_argument("--history", action="store_true", help="Muestra el historial del turno")
+    parser.add_argument("--status", action="store_true", help="Muestra estado resumido")
     args = parser.parse_args(argv)
 
     game = BackgammonGame()
@@ -63,79 +95,81 @@ def main(argv=None):
         game.setup_board()
         print(format_board_summary(game.board()))
 
-    # IMPORTANTE: chequear None (no truthiness) para que "" dispare error
+    # Tirada (fija o automática)
     if args.roll is not None:
-        a, b = parse_roll(args.roll)
-        game.start_turn((a, b))
+        roll = _parse_roll(args.roll)  # puede lanzar ValueError (tests lo esperan)
+        game.start_turn(roll)
     else:
         game.start_turn()
 
+    # Listar movimientos (antes de aplicar)
     if args.list_moves:
         moves = game.legal_moves()
-        print(f"Dados: {game.last_roll()}")
-        print(f"Pips: {game.pips()}")
+        print("Dados:", game.last_roll())
+        print("Pips:", game.pips())
         print("Legal moves:")
-        for (origin, dest, pip) in moves:
-            if origin == -1:
-                print(f"  BAR->{dest} (pip {pip})")
-            else:
-                print(f"  {origin}->{dest} (pip {pip})")
+        for origin, dest, pip in moves:
+            o_label = "bar" if origin == -1 else str(origin)
+            print(f"  {o_label}->{dest} (pip {pip})")
 
+    # Reingreso desde barra (opcional)
     if args.enter is not None:
-        try:
-            pip = int(args.enter)
-        except Exception:
-            raise ValueError("--enter requiere un entero (ej: --enter 3)")
-        cur_color = Board.WHITE if _current_color_label(game) == "white" else Board.BLACK
-        if game.bar_count(cur_color) <= 0:
-            raise ValueError("No hay fichas en barra para el jugador actual.")
-        if not game.can_enter(pip):
-            raise ValueError("No es posible entrar desde barra con ese pip.")
-        dest = game.enter_from_bar(pip)
-        print(f"Enter: BAR->{dest} (pip {pip})")
-        print(f"Pips: {game.pips()}")
+        pip = _parse_enter(args.enter)
+        # preferimos API unificada: apply_move(-1, pip)
+        dest = game.apply_move(-1, pip)
+        print(f"Enter: -1->{dest} (pip {pip})")
+        print("Pips:", game.pips())
 
+    # Aplicar movimientos secuenciales
     if args.move:
         for mv in args.move:
-            origin, pip = parse_move(mv)
-            real_dest = game.apply_move(origin, pip)
-            print(f"Move: {origin}->{real_dest} (pip {pip})")
-            print(f"Pips: {game.pips()}")
+            origin, pip = _parse_move(mv)
+            dest = game.apply_move(origin, pip)
+            print(f"Move: {origin}->{dest} (pip {pip})")
+            print("Pips:", game.pips())
 
-    if args.auto_end_turn:
-        ok = game.auto_end_turn()
-        if ok:
-            print("Sin jugadas legales → turno rotado.")
-            print(f"Turno ahora: {_current_color_label(game)}")
-            print(f"Pips: {game.pips()}")
-        else:
-            print("Aún hay jugadas legales; no se rota.")
-
-    if args.end_turn:
-        game.end_turn()
-        print("Turno finalizado.")
-        print(f"Turno ahora: {_current_color_label(game)}")
-        print(f"Pips: {game.pips()}")
-
+    # Historial del turno
     if args.history:
         print("History:")
         for (o, d, color, pip) in game.turn_history():
-            lbl = "W" if color == Board.WHITE else "B"
-            if o == -1:
-                print(f"  BAR->{d} (pip {pip}, {lbl})")
-            else:
-                print(f"  {o}->{d} (pip {pip}, {lbl})")
+            o_label = "bar" if o == -1 else str(o)
+            who = "W" if color == Board.WHITE else "B"
+            print(f"  {who}: {o_label}->{d} (pip {pip})")
 
+    # Estado (resumen)
     if args.status:
-        cur_lbl = _current_color_label(game)
         print("Estado:")
-        print(f"  Turno de: {cur_lbl}")
-        print(f"  Dados: {game.last_roll()}")
-        print(f"  Pips: {game.pips()}")
-        print(f"  Bar W/B: {game.bar_count(Board.WHITE)}/{game.bar_count(Board.BLACK)}")
+        print("Jugador:", _player_color_label(game))
+        print("Dados:", game.last_roll())
+        print("Pips:", game.pips())
 
-    print(f"Dados: {game.last_roll()}")
-    print(f"Pips: {game.pips()}")
+    # Fin de turno
+    if args.end_turn:
+        game.end_turn()
+        print("Turno finalizado.")
+        print("Turno ahora:", _player_color_label(game))
+        print("Dados:", game.last_roll())
+        print("Pips:", game.pips())
+
+    # Auto fin si no hay jugadas
+    if args.auto_end_turn:
+        if game.auto_end_turn():
+            print("Sin jugadas → turno rotado.")
+            print("Turno ahora:", _player_color_label(game))
+        else:
+            print("Aún hay jugadas legales disponibles.")
+        print("Dados:", game.last_roll())
+        print("Pips:", game.pips())
+
+    # Salida estándar al final (coherente con tests previos)
+    if not (args.end_turn or args.auto_end_turn or args.history or args.status or args.list_moves or args.move or args.enter):
+        print(f"Datos: {game.last_roll()}")
+        print(f"Pips: {game.pips()}")
+    else:
+        # Siempre mostrar el estado final mínimo al terminar
+        print("Dados:", game.last_roll())
+        print("Pips:", game.pips())
+
 
 if __name__ == "__main__":
     main()
