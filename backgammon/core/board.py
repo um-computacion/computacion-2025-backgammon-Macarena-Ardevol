@@ -1,5 +1,5 @@
 class Board:
-    """Tablero de Backgammon: 24 puntos y administración de fichas."""
+    """Tablero de Backgammon: 24 puntos, barra por color y reglas mínimas de movimiento/captura."""
     NUM_POINTS = 24
     WHITE = 1
     BLACK = -1
@@ -159,41 +159,44 @@ class Board:
         return dest
 
     # ---------- entrada desde barra ----------
-    def dest_from_bar(self, pip: int, color: int) -> int:
-        """Índice de entrada al salir de la barra con este pip."""
-        if not isinstance(pip, int) or pip < 1 or pip > 6:
-            raise ValueError("pip inválido para entrar desde barra")
-        if color not in (self.WHITE, self.BLACK):
-            raise ValueError("color inválido")
-        # WHITE entra 23..18 (24 - pip); BLACK entra 0..5 (pip - 1)
-        return (24 - pip) if color == self.WHITE else (pip - 1)
-
-    # Compatibilidad con código anterior (alias)
     def entry_index(self, pip: int, color: int) -> int:
-        return self.dest_from_bar(pip, color)
+        """
+        Punto de entrada desde barra según color y pip.
+        Convención de índices 0..23:
+          - WHITE entra en el home de BLACK (top), que es 23..18.
+            Fórmula: dest = 24 - pip  -> índices 23..18
+          - BLACK entra en el home de WHITE (bottom), que es 0..5.
+            Fórmula: dest = pip - 1   -> índices 0..5
+        """
+        if not isinstance(pip, int) or pip <= 0:
+            raise ValueError("Pip inválido")
+        if color == self.WHITE:
+            dest = 24 - pip
+        elif color == self.BLACK:
+            dest = pip - 1
+        else:
+            raise ValueError("Color inválido")
+        if not (0 <= dest < self.NUM_POINTS):
+            raise ValueError("Destino fuera de tablero")
+        return dest
 
-    def can_enter_from_bar(self, pip: int, color: int) -> bool:
-        """¿Se puede entrar desde la barra? vacío, propio o 'hit' (1 rival)."""
+    def dest_from_bar(self, pip: int, color: int) -> int:
+        """Alias utilitario: destino de entrada desde barra (peek)."""
+        return self.entry_index(pip, color)
+
+    def can_enter(self, pip: int, color: int) -> bool:
+        """Se puede entrar si hay ficha en barra y el punto de entrada no está bloqueado."""
         if color not in (self.WHITE, self.BLACK):
             raise ValueError("Color inválido")
         if self.bar_count(color) <= 0:
             return False
         try:
-            dest = self.dest_from_bar(pip, color)
+            dest = self.entry_index(pip, color)
         except Exception:
             return False
-        owner = self.owner_at(dest)
-        cnt = self.count_at(dest)
-        if owner == 0:
-            return True
-        if owner == color:
-            return True
-        # rival: permitido sólo si hay una (blot)
-        return cnt == 1
-
-    # Compatibilidad con código anterior (alias)
-    def can_enter(self, pip: int, color: int) -> bool:
-        return self.can_enter_from_bar(pip, color)
+        if self.is_blocked(dest, color):
+            return False
+        return True
 
     def enter_from_bar(self, pip: int, color: int) -> int:
         """
@@ -201,9 +204,9 @@ class Board:
         Captura si hay blot rival en el destino.
         Devuelve el índice destino.
         """
-        if not self.can_enter_from_bar(pip, color):
+        if not self.can_enter(pip, color):
             raise ValueError("No se puede entrar con ese pip/color")
-        dest = self.dest_from_bar(pip, color)
+        dest = self.entry_index(pip, color)
         dv = self.__points__[dest]
 
         # sale de barra
@@ -211,16 +214,34 @@ class Board:
 
         if color == self.WHITE:
             if dv == -1:
-                # golpear negra
                 self.__points__[dest] = 1
                 self._inc_bar(self.BLACK)
             else:
                 self.__points__[dest] = dv + 1
         else:
             if dv == 1:
-                # golpear blanca
                 self.__points__[dest] = -1
                 self._inc_bar(self.WHITE)
             else:
                 self.__points__[dest] = dv - 1
         return dest
+
+    # ---------- snapshot/restore para guardado ----------
+    def snapshot(self) -> dict:
+        """Devuelve un dict con el estado interno (puntos y barras)."""
+        return {
+            "points": list(self.__points__),
+            "white_bar": int(self.__white_bar__),
+            "black_bar": int(self.__black_bar__),
+        }
+
+    def restore(self, snap: dict) -> None:
+        """Restaura desde snapshot generado por snapshot()."""
+        pts = snap.get("points")
+        wb = snap.get("white_bar", 0)
+        bb = snap.get("black_bar", 0)
+        if pts is None or len(pts) != self.NUM_POINTS:
+            raise ValueError("Snapshot inválido")
+        self.__points__ = list(int(x) for x in pts)
+        self.__white_bar__ = int(wb)
+        self.__black_bar__ = int(bb)
