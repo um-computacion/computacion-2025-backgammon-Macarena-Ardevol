@@ -1,14 +1,17 @@
 class Board:
-    """Tablero de Backgammon: 24 puntos y administración de fichas."""
+    """Tablero de Backgammon: 24 puntos, barra y borne-off."""
     NUM_POINTS = 24
     WHITE = 1
     BLACK = -1
 
     def __init__(self):
         self.__points__ = [0] * self.NUM_POINTS
-        # Barra por color (no cuenta en count_total)
+        # Barra (capturas)
         self.__white_bar__ = 0
         self.__black_bar__ = 0
+        # Fichas borne-off (retiradas)
+        self.__white_borne_off__ = 0
+        self.__black_borne_off__ = 0
 
     # ---------- utilidades básicas ----------
     def num_points(self) -> int:
@@ -29,7 +32,7 @@ class Board:
         self.__points__[idx] = int(value)
 
     def count_total(self, color: int) -> int:
-        """Total de fichas del color en los 24 puntos (excluye barra)."""
+        """Total de fichas del color en los 24 puntos (excluye barra y borne-off)."""
         if color == self.WHITE:
             return sum(v for v in self.__points__ if v > 0)
         elif color == self.BLACK:
@@ -64,6 +67,22 @@ class Board:
         else:
             raise ValueError("Color inválido")
 
+    # ---------- borne-off ----------
+    def borne_off_count(self, color: int) -> int:
+        if color == self.WHITE:
+            return self.__white_borne_off__
+        elif color == self.BLACK:
+            return self.__black_borne_off__
+        raise ValueError("Color inválido")
+
+    def _inc_borne_off(self, color: int) -> None:
+        if color == self.WHITE:
+            self.__white_borne_off__ += 1
+        elif color == self.BLACK:
+            self.__black_borne_off__ += 1
+        else:
+            raise ValueError("Color inválido")
+
     # ---------- setup ----------
     def setup_initial(self) -> None:
         P = [0] * 24
@@ -74,6 +93,8 @@ class Board:
         self.__points__ = P
         self.__white_bar__ = 0
         self.__black_bar__ = 0
+        self.__white_borne_off__ = 0
+        self.__black_borne_off__ = 0
 
     # ---------- consultas de punto ----------
     def owner_at(self, idx: int) -> int:
@@ -94,11 +115,32 @@ class Board:
             raise ValueError("Color inválido")
         v = self.__points__[idx]
         if mover_color == self.WHITE:
-            # bloquean negras con 2+
-            return v <= -2
+            return v <= -2  # negras 2+
         else:
-            # bloquean blancas con 2+
-            return v >= 2
+            return v >= 2   # blancas 2+
+
+    # ---------- homes y helpers ----------
+    def home_indices(self, color: int) -> range:
+        if color == self.WHITE:
+            return range(0, 6)     # 0..5
+        elif color == self.BLACK:
+            return range(18, 24)   # 18..23
+        else:
+            raise ValueError("Color inválido")
+
+    def all_in_home(self, color: int) -> bool:
+        """¿Todas las fichas de 'color' están en su home (sin contar barra)?"""
+        if color not in (self.WHITE, self.BLACK):
+            raise ValueError("Color inválido")
+        if self.bar_count(color) > 0:
+            return False
+        home = set(self.home_indices(color))
+        if color == self.WHITE:
+            # no debe haber blancas fuera de 0..5
+            return all((v <= 0) or (i in home) for i, v in enumerate(self.__points__))
+        else:
+            # no debe haber negras fuera de 18..23
+            return all((v >= 0) or (i in home) for i, v in enumerate(self.__points__))
 
     # ---------- destinos, movimiento normal ----------
     def dest_from(self, origin: int, pip: int, mover_color: int) -> int:
@@ -115,10 +157,8 @@ class Board:
     def can_move(self, origin: int, pip: int, mover_color: int) -> bool:
         if mover_color not in (self.WHITE, self.BLACK):
             raise ValueError("Color inválido")
-        # si hay fichas en barra, no se puede mover normal
         if self.bar_count(mover_color) > 0:
             return False
-        # Debe haber ficha propia en origin
         if self.owner_at(origin) != mover_color or self.count_at(origin) == 0:
             return False
         try:
@@ -127,7 +167,7 @@ class Board:
             return False
         if self.is_blocked(dest, mover_color):
             return False
-        return True  # vacío, propio o blot rival (1)
+        return True
 
     def move(self, origin: int, pip: int, mover_color: int) -> int:
         if not self.can_move(origin, pip, mover_color):
@@ -160,20 +200,12 @@ class Board:
 
     # ---------- entrada desde barra ----------
     def entry_index(self, pip: int, color: int) -> int:
-        """
-        Punto de entrada desde barra según color y pip.
-        Convención de índices 0..23:
-          - WHITE entra en el home de BLACK (top), que es 23..18.
-            Fórmula: dest = 24 - pip  -> índices 23..18
-          - BLACK entra en el home de WHITE (bottom), que es 0..5.
-            Fórmula: dest = pip - 1   -> índices 0..5
-        """
         if not isinstance(pip, int) or pip <= 0:
             raise ValueError("Pip inválido")
         if color == self.WHITE:
-            dest = 24 - pip
+            dest = 24 - pip            # 23..18
         elif color == self.BLACK:
-            dest = pip - 1
+            dest = pip - 1             # 0..5
         else:
             raise ValueError("Color inválido")
         if not (0 <= dest < self.NUM_POINTS):
@@ -181,7 +213,6 @@ class Board:
         return dest
 
     def can_enter(self, pip: int, color: int) -> bool:
-        """Se puede entrar si hay ficha en barra y el punto de entrada no está bloqueado."""
         if color not in (self.WHITE, self.BLACK):
             raise ValueError("Color inválido")
         if self.bar_count(color) <= 0:
@@ -195,19 +226,11 @@ class Board:
         return True
 
     def enter_from_bar(self, pip: int, color: int) -> int:
-        """
-        Entra una ficha desde la barra usando 'pip'.
-        Captura si hay blot rival en el destino.
-        Devuelve el índice destino.
-        """
         if not self.can_enter(pip, color):
             raise ValueError("No se puede entrar con ese pip/color")
         dest = self.entry_index(pip, color)
         dv = self.__points__[dest]
-
-        # sale de barra
         self._dec_bar(color)
-
         if color == self.WHITE:
             if dv == -1:
                 self.__points__[dest] = 1
@@ -222,32 +245,54 @@ class Board:
                 self.__points__[dest] = dv - 1
         return dest
 
-    # ---------- helpers de home (para futuras etapas) ----------
-    def is_in_white_home(self, idx: int) -> bool:
-        """Home de WHITE = 0..5"""
-        self.__check_index__(idx)
-        return 0 <= idx <= 5
+    # ---------- bear-off (retirar fichas) ----------
+    def _has_higher_in_home(self, origin: int, color: int) -> bool:
+        """¿Hay fichas propias en posiciones 'más altas' dentro del home?
+        WHITE: índices mayores (origin+1..5).  BLACK: índices menores (18..origin-1)."""
+        if color == self.WHITE:
+            rng = range(origin + 1, 6)
+            return any(self.owner_at(i) == self.WHITE and self.count_at(i) > 0 for i in rng)
+        else:
+            rng = range(18, origin)
+            return any(self.owner_at(i) == self.BLACK and self.count_at(i) > 0 for i in rng)
 
-    def is_in_black_home(self, idx: int) -> bool:
-        """Home de BLACK = 18..23"""
-        self.__check_index__(idx)
-        return 18 <= idx <= 23
+    def can_bear_off(self, origin: int, pip: int, color: int) -> bool:
+        if color not in (self.WHITE, self.BLACK):
+            raise ValueError("Color inválido")
+        if not isinstance(pip, int) or pip <= 0:
+            raise ValueError("Pip inválido")
+        if self.owner_at(origin) != color or self.count_at(origin) == 0:
+            return False
+        if not self.all_in_home(color):
+            return False
 
-    # ---------- serialización ----------
-    def to_dict(self) -> dict:
-        return {
-            "points": list(self.__points__),
-            "white_bar": int(self.__white_bar__),
-            "black_bar": int(self.__black_bar__),
-        }
+        # Exacto o mayor sin fichas "más altas"
+        try:
+            if color == self.WHITE:
+                dest = origin - pip
+                if dest == -1:  # exacto (salir del tablero)
+                    return True
+                if dest < 0:
+                    return not self._has_higher_in_home(origin, color)
+                # si dest dentro tablero, entonces no es bear-off sino move normal
+                return False
+            else:
+                dest = origin + pip
+                if dest == 24:
+                    return True
+                if dest > 23:
+                    return not self._has_higher_in_home(origin, color)
+                return False
+        except Exception:
+            return False
 
-    @classmethod
-    def from_dict(cls, data: dict) -> "Board":
-        b = cls()
-        pts = data.get("points")
-        if not isinstance(pts, list) or len(pts) != cls.NUM_POINTS:
-            raise ValueError("points inválidos en Board.from_dict")
-        b.__points__ = [int(v) for v in pts]
-        b.__white_bar__ = int(data.get("white_bar", 0))
-        b.__black_bar__ = int(data.get("black_bar", 0))
-        return b
+    def bear_off(self, origin: int, pip: int, color: int) -> None:
+        if not self.can_bear_off(origin, pip, color):
+            raise ValueError("No se puede retirar esa ficha (bear-off)")
+        # Quitar una ficha del origen
+        v = self.__points__[origin]
+        if color == self.WHITE:
+            self.__points__[origin] = v - 1
+        else:
+            self.__points__[origin] = v + 1
+        self._inc_borne_off(color)

@@ -1,6 +1,7 @@
 import argparse
 import json
 from pathlib import Path
+
 from backgammon.core.game import BackgammonGame
 from backgammon.core.board import Board
 
@@ -18,150 +19,190 @@ def format_board_summary(board) -> str:
     return "\n".join(lines)
 
 
-def _parse_roll(roll_str: str) -> tuple[int, int]:
-    # Validación estricta para tests de errores (incluye vacío)
-    if roll_str is None:
-        return None  # type: ignore
-    s = roll_str.strip()
-    if s == "":
-        raise ValueError("Formato de --roll vacío")
+def _parse_pair_csv(s: str) -> tuple[int, int]:
+    """Parsea 'a,b' -> (int(a), int(b)). Lanza ValueError si es inválido."""
+    if s is None or s == "":
+        raise ValueError("Valor vacío")
     parts = s.split(",")
     if len(parts) != 2:
-        raise ValueError("Formato de --roll inválido, usar a,b")
+        raise ValueError("Formato inválido: se espera 'a,b'")
     try:
-        a = int(parts[0]); b = int(parts[1])
+        a = int(parts[0].strip())
+        b = int(parts[1].strip())
     except Exception:
-        raise ValueError("Formato de --roll no numérico")
+        raise ValueError("Valores no numéricos en 'a,b'")
+    return a, b
+
+
+def _parse_move_str(s: str) -> tuple[int, int]:
+    """Parsea 'origin,pip' -> (int, int)."""
+    return _parse_pair_csv(s)
+
+
+def _roll_from_arg(s: str) -> tuple[int, int]:
+    a, b = _parse_pair_csv(s)
+    # valida rango 1..6
     if not (1 <= a <= 6 and 1 <= b <= 6):
-        raise ValueError("Valores de --roll fuera de rango (1..6)")
+        raise ValueError("--roll a,b requiere enteros entre 1 y 6")
     return (a, b)
 
 
-def _parse_move_str(move_str: str) -> tuple[int, int]:
-    s = move_str.strip()
-    if "," not in s:
-        raise ValueError("Formato de --move inválido, usar origen,pip")
-    o, p = s.split(",", 1)
-    try:
-        origin = int(o); pip = int(p)
-    except Exception:
-        raise ValueError("Valores de --move no numéricos")
-    if origin < -1 or not (1 <= pip <= 6):
-        raise ValueError("Valores de --move fuera de rango")
-    return origin, pip
+def _print_status(game: BackgammonGame):
+    print("Estado:")
+    cur = game.current_player()
+    color = getattr(cur, "get_color", lambda: getattr(cur, "_Player__color__", "unknown"))()
+    print(f"Jugador: {color}")
+    print(f"Dados: {game.last_roll()}")
+    print(f"Pips: {game.pips()}")
+
+
+def _print_history(game: BackgammonGame):
+    print("History:")
+    # turn_history: (origin, dest|None, color_int, pip, kind)
+    for (o, d, _, pip, kind) in game.turn_history():
+        if kind == "enter":   # -1 -> d
+            print(f"BAR->{d} (pip {pip})")
+        elif kind == "off":   # o -> OFF
+            print(f"{o}->OFF (pip {pip})")
+        else:                 # move normal
+            print(f"{o}->{d} (pip {pip})")
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="backgammon-cli")
     parser.add_argument("--setup", action="store_true", help="Inicializa el tablero estándar")
     parser.add_argument("--roll", type=str, help="Usa tirada fija a,b (ej: 3,4)")
-    parser.add_argument("--move", action="append", help="Aplica movimiento origen,pip (ej: 7,3). Repetible.")
     parser.add_argument("--list-moves", action="store_true", help="Lista movimientos legales")
-    parser.add_argument("--end-turn", action="store_true", help="Cierra el turno si no quedan pips")
-    parser.add_argument("--auto-end-turn", action="store_true", help="Cierra el turno si no hay jugadas legales")
-    parser.add_argument("--history", action="store_true", help="Muestra historial del turno")
-    parser.add_argument("--status", action="store_true", help="Muestra estado actual")
-    parser.add_argument("--save", type=str, help="Guarda la partida en JSON (ruta)")
-    parser.add_argument("--load", type=str, help="Carga la partida desde JSON (ruta)")
+    parser.add_argument("--move", action="append", help="Aplica movimiento origin,pip (repetible)")
+    parser.add_argument("--bear-off", action="append",
+                        help="Retira ficha (bear-off) origin,pip (repetible, requiere todas en home)")
+    parser.add_argument("--end-turn", action="store_true", help="Finaliza turno si no quedan pips")
+    parser.add_argument("--auto-end-turn", action="store_true",
+                        help="Rota turno automáticamente si no hay jugadas legales")
+    parser.add_argument("--history", action="store_true", help="Muestra el historial del turno")
+    parser.add_argument("--status", action="store_true", help="Muestra el estado actual")
+    parser.add_argument("--save", type=str, help="Guarda la partida en JSON en la ruta indicada")
+    parser.add_argument("--load", type=str, help="Carga la partida desde JSON en la ruta indicada")
+
     args = parser.parse_args(argv)
 
-    # Validación anticipada de --roll para que tests de errores capten ValueError
-    roll_tuple = None
-    if args.roll is not None:
-        roll_tuple = _parse_roll(args.roll)  # puede levantar ValueError
-
-    # Crear/cargar juego
+    # juego base
     game = BackgammonGame()
-    if args.load:
-        path = Path(args.load)
-        if not path.exists():
-            raise ValueError("Archivo a cargar inexistente")
-        data = json.loads(path.read_text(encoding="utf-8"))
-        game = BackgammonGame.from_dict(data)
+    game.add_player("White", "white")
+    game.add_player("Black", "black")
 
-    # setup básico y jugadores si no viene desde load()
-    if args.load is None:
-        game.add_player("White", "white")
-        game.add_player("Black", "black")
+    # cargar partida si corresponde (antes de setup/roll)
+    if args.load:
+        p = Path(args.load)
+        if not p.exists():
+            raise ValueError(f"Archivo a cargar no existe: {args.load}")
+        data = json.loads(p.read_text(encoding="utf-8"))
+        game = BackgammonGame.from_dict(data)
 
     if args.setup:
         game.setup_board()
         print(format_board_summary(game.board()))
 
-    # Tirada (fija o automática si más abajo hace falta y no hay)
-    if roll_tuple is not None:
-        game.start_turn(roll_tuple)
-
-    # --list-moves
-    if args.list_moves:
-        # Si no hay tirada, tirar autom.
-        if game.last_roll() is None:
-            game.start_turn()
-        moves = game.legal_moves()
+    # Tirada fija / automática si se piden acciones de turno
+    if args.roll is not None:
+        roll = _roll_from_arg(args.roll)  # puede lanzar ValueError
+        game.start_turn(roll)
         print(f"Dados: {game.last_roll()}")
         print(f"Pips: {game.pips()}")
-        print("Legal moves:")
-        for (o, d, pip) in moves:
-            if o == -1:
-                print(f"  bar->{d} (pip {pip})")
-            else:
-                print(f"  {o}->{d} (pip {pip})")
-
-    # --move (puede venir varias veces)
-    if args.move:
-        if game.last_roll() is None:
-            # Si no hubo tirada previa, tirar automática
+    else:
+        # Si no hay roll explícito pero se piden acciones que requieren pips,
+        # iniciamos turno automático.
+        needs_turn = any([args.list_moves, args.move, args.bear_off, args.end_turn, args.auto_end_turn])
+        if needs_turn and game.last_roll() is None:
             game.start_turn()
-        for m in args.move:
-            origin, pip = _parse_move_str(m)
-            real_dest = game.apply_move(origin, pip)
-            print(f"Move: {origin}->{real_dest} (pip {pip})")
-            # Mostrar dados y pips luego de cada move (para satisfacer el test que busca "Dados: (3, 4)")
+            # coherencia de salida con tests previos
             print(f"Dados: {game.last_roll()}")
             print(f"Pips: {game.pips()}")
 
-    # --end-turn
-    if args.end_turn:
-        game.end_turn()
-        cp = game.current_player()
-        cur = getattr(cp, "get_color", lambda: getattr(cp, "_Player__color__", "unknown"))()
-        print("Turno finalizado.")
-        print(f"Turno ahora: {cur}")
-        print(f"Dados: {game.last_roll()}")
-        print(f"Pips: {game.pips()}")
+    # Listar movimientos
+    if args.list_moves:
+        print("Legal moves:")
+        for (o, d, pip) in game.legal_moves():
+            if o == -1:
+                print(f"  BAR->{d} (pip {pip})")
+            else:
+                print(f"  {o}->{d} (pip {pip})")
+        # Bear-off disponibles
+        offs = game.legal_bear_off_moves()
+        if offs:
+            print("Bear-off moves:")
+            for (o, pip) in offs:
+                print(f"  {o}->OFF (pip {pip})")
 
-    # --auto-end-turn
+    # Aplicar movimientos (puede lanzar ValueError si inválidos)
+    if args.move:
+        for m in args.move:
+            origin, pip = _parse_move_str(m)  # valida formato
+            real_dest = game.apply_move(origin, pip)  # puede ser None si bear-off
+            if real_dest is None:
+                # por si alguien pasa -1,2 en move con all-in-home (no debería)
+                print(f"Bear-off: {origin} (pip {pip})")
+            else:
+                print(f"Move: {origin}->{real_dest} (pip {pip})")
+            # coherencia de salida esperada en tests
+            print(f"Dados: {game.last_roll()}")
+            print(f"Pips: {game.pips()}")
+
+    # Bear-off explícito
+    if args.bear_off:
+        for m in args.bear_off:
+            origin, pip = _parse_move_str(m)
+            game.bear_off(origin, pip)
+            print(f"Bear-off: {origin} (pip {pip})")
+            print(f"Dados: {game.last_roll()}")
+            print(f"Pips: {game.pips()}")
+
+    # Auto end-turn
     if args.auto_end_turn:
         ok = game.auto_end_turn()
-        print("Auto end-turn:", "rotado" if ok else "aún hay jugadas")
+        if ok:
+            print("Sin jugadas → turno rotado.")
+        else:
+            print("Aún hay jugadas; no se rota.")
         print(f"Dados: {game.last_roll()}")
         print(f"Pips: {game.pips()}")
 
-    # --history
+    # Cerrar turno (puede lanzar ValueError si quedan pips)
+    if args.end_turn:
+        game.end_turn()
+        print("Turno finalizado.")
+        print(f"Dados: {game.last_roll()}")
+        print(f"Pips: {game.pips()}")
+        # Mostrar siguiente jugador
+        nxt = game.current_player()
+        ncolor = getattr(nxt, "get_color", lambda: getattr(nxt, "_Player__color__", "unknown"))()
+        print(f"Turno ahora: {ncolor}")
+
+        # Chequear victoria del jugador anterior
+        prev_idx = (game._BackgammonGame__current_player_index__ - 1) % game.num_players()
+        prev = game.players()[prev_idx]
+        prev_color = getattr(prev, "get_color", lambda: getattr(prev, "_Player__color__", "unknown"))()
+        prev_int = Board.WHITE if prev_color == "white" else Board.BLACK
+        if game.has_won(prev_int):
+            print(f"¡Victoria de {prev_color}!")
+
+    # History
     if args.history:
-        print("History:")
-        for (o, d, color, pip) in game.turn_history():
-            lbl = "WHITE" if color == Board.WHITE else "BLACK"
-            if o == -1:
-                print(f"  bar->{d} (pip {pip}) [{lbl}]")
-            else:
-                print(f"  {o}->{d} (pip {pip}) [{lbl}]")
+        _print_history(game)
 
-    # --status
+    # Status
     if args.status:
-        cp = game.current_player()
-        cur = getattr(cp, "get_color", lambda: getattr(cp, "_Player__color__", "unknown"))()
-        print("Estado:")
-        print(f"Turno de: {cur}")
-        print(f"Dados: {game.last_roll()}")
-        print(f"Pips: {game.pips()}")
+        _print_status(game)
 
-    # --save (al final para capturar el estado actual)
+    # Guardar partida (al final, con estado actual)
     if args.save:
-        path = Path(args.save)
+        p = Path(args.save)
+        p.parent.mkdir(parents=True, exist_ok=True)
         data = game.to_dict()
-        path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-        print(f"Guardado en: {path}")
+        p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        # salida amigable
+        # (no es requerido por tests, pero útil)
+        # print(f"Guardado en {p}")
 
 
 if __name__ == "__main__":
