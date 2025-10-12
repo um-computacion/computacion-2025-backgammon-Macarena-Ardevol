@@ -30,5 +30,10 @@ class TestCLIErrores(unittest.TestCase):
         with self.assertRaises(ValueError):
             cli_main(["--setup", "--roll", "1,2", "--move", "12,1"])
 
+    def test_cli_load_inexistente_levanta(self):
+        with self.assertRaises(ValueError):
+            cli_main(["--load", "no_existe_abc123.json"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,5 +1,7 @@
 import unittest
-import io, contextlib
+import io, contextlib, json, os
+from pathlib import Path
+
 
 class TestCLIValidos(unittest.TestCase):
     def test_cli_app_import(self):
@@ -66,6 +68,41 @@ class TestCLIValidos(unittest.TestCase):
         self.assertIn("Estado:", out)
         self.assertIn("Dados: (3, 4)", out)
         self.assertIn("Pips: (3, 4)", out)
+
+    def test_cli_save_and_load_roundtrip(self):
+        from backgammon.cli.app import main as cli_main
+
+        tmpdir = Path("tmp_tests"); tmpdir.mkdir(exist_ok=True)
+        savefile = tmpdir / "partida.json"
+
+        try:
+            # Guardar luego de una jugada
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                cli_main(["--setup", "--roll", "3,4", "--move", "7,3", "--save", str(savefile)])
+            self.assertTrue(savefile.exists())
+
+            data = json.loads(savefile.read_text(encoding="utf-8"))
+            self.assertIn("board", data)
+            self.assertIn("players", data)
+
+            # Cargar y consultar status (no debe explotar)
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                cli_main(["--load", str(savefile), "--status"])
+            out = buf.getvalue()
+            self.assertIn("Estado:", out)
+            self.assertIn("Pips:", out)
+        finally:
+            # Limpieza
+            try:
+                if savefile.exists():
+                    savefile.unlink()
+                if tmpdir.exists():
+                    os.rmdir(tmpdir)
+            except Exception:
+                pass
+
 
 if __name__ == "__main__":
     unittest.main()
