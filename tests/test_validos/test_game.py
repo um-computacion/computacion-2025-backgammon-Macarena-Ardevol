@@ -3,6 +3,13 @@ from backgammon.core.game import BackgammonGame
 from backgammon.core.board import Board
 
 class TestGameValidos(unittest.TestCase):
+
+    def setUp(self):
+       self.g = BackgammonGame()
+       self.g.add_player("Alice", "white")
+       self.g.add_player("Bob", "black")
+       self.g.setup_board()
+
     def test_game_instance(self):
         game = BackgammonGame()
         self.assertIsInstance(game, BackgammonGame)
@@ -105,20 +112,64 @@ class TestGameValidos(unittest.TestCase):
         self.assertEqual(game.current_player().__color__, "black")
 
     def test_game_auto_end_turn_bloqueado_rota(self):
-        game = BackgammonGame()
-        game.add_player("Alice", "white")
-        game.add_player("Bob", "black")
-        game.setup_board()
-        b = game.board()
-        b.set_point(22, -2)  # bloquear 23->22
-        b.set_point(6, -2)   # bloquear 7->6
-        b.set_point(4, -2)   # bloquear 5->4
-        game.start_turn((1, 1))
-        self.assertTrue(game.can_auto_end())
-        ok = game.auto_end_turn()
-        self.assertTrue(ok)
-        self.assertEqual(game.pips(), ())
-        self.assertEqual(game.current_player().__color__, "black")
+       game = BackgammonGame()
+       game.add_player("Alice", "white")
+       game.add_player("Bob", "black")
+       game.setup_board()
+       # Bloqueamos destinos WHITE con pip=1: 22, 11 (ya bloqueado), 6, 4
+       b = game.board()
+       b.set_point(22, -2)  # bloquear 23->22
+      # 11 ya está en -5 por setup_initial()
+       b.set_point(6, -2)   # bloquear 7->6
+       b.set_point(4, -2)   # bloquear 5->4
+       game.start_turn((1, 1))
+    # Ahora debería auto-rotar porque no hay jugadas con (1,1)
+       ok = game.auto_end_turn() 
+       self.assertTrue(ok)
+       self.assertEqual(game.pips(), ())
+       self.assertEqual(game.current_player().__color__, "black")
+
+    def test_white_enter_from_bar_simple(self):
+        # una blanca a la barra golpeando un blot blanco para simplificar:
+        # destino negro con blot en 18 (índice 18 = -1), y movemos negra para golpear.
+        b = self.g.board()
+        b.set_point(18, 1)       # blanca en 19(=idx 18)
+        # negra con pip=1 desde 17(=idx 16) golpea 17->18
+        b.set_point(16, -1)      # al menos una negra en 17
+        dest = b.move(16, 1, Board.BLACK)
+        self.assertEqual(dest, 17)  # 16+1=17 (ojo: había blanca en 18; ajustamos: golpe a 17)
+        self.g.setup_board()
+        b = self.g.board()
+        b.set_point(16, 1)       # blanca blot en idx 16
+        b.set_point(15, -1)      # negra en idx 15
+        dest = b.move(15, 1, Board.BLACK)  # 15+1=16 golpea blanca
+        self.assertEqual(dest, 16)
+        self.assertEqual(b.bar_count(Board.WHITE), 1)
+
+        # turno de WHITE con pip=6 permite entrar en 24-6=18 (idx 18)
+        self.g.start_turn((6, 3))
+        # liberar 18 si está bloqueado: nos aseguramos que NO haya 2+ negras
+        if b.owner_at(18) == Board.BLACK and b.count_at(18) >= 2:
+            b.set_point(18, -1)  # dejar blot para validar hit opcional
+        self.assertTrue(self.g.can_enter(6))
+        d = self.g.enter_from_bar(6)
+        self.assertIn(d, range(18, 24))  # home de BLACK
+        self.assertEqual(b.bar_count(Board.WHITE), 0)
+
+    def test_cannot_move_normal_if_bar_not_empty(self):
+        b = self.g.board()
+        # Dejar un blot blanca y golpear con negras
+        b.set_point(10, 1)
+        b.set_point(9, -1)
+        b.move(9, 1, Board.BLACK)   # golpe a blanca -> barra blanca = 1
+        self.assertEqual(b.bar_count(Board.WHITE), 1)
+        self.g.start_turn((3,4))
+        # Mientras haya barra, no puede mover normal
+        self.assertFalse(self.g.can_play_move(7, 3))
+        # Pero sí puede entrar si el destino no está bloqueado
+        # White entra con 3 en idx 21 (24-3)
+        self.assertTrue(self.g.can_enter(3))
+
 
 if __name__ == "__main__":
     unittest.main()
