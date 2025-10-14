@@ -41,7 +41,6 @@ def _parse_move_str(s: str) -> tuple[int, int]:
 
 def _roll_from_arg(s: str) -> tuple[int, int]:
     a, b = _parse_pair_csv(s)
-    # valida rango 1..6
     if not (1 <= a <= 6 and 1 <= b <= 6):
         raise ValueError("--roll a,b requiere enteros entre 1 y 6")
     return (a, b)
@@ -66,6 +65,22 @@ def _print_history(game: BackgammonGame):
             print(f"{o}->OFF (pip {pip})")
         else:                 # move normal
             print(f"{o}->{d} (pip {pip})")
+
+
+def _idx_prev_del_actual(game: BackgammonGame) -> int:
+    """
+    Evita depender de nombres 'mangled'. Calcula el índice del jugador anterior
+    a partir del jugador actual y la lista de players.
+    """
+    players = list(game.players())
+    if not players:
+        return 0
+    actual = game.current_player()
+    try:
+        cur_idx = players.index(actual)
+    except ValueError:
+        cur_idx = 0
+    return (cur_idx - 1) % len(players)
 
 
 def main(argv=None):
@@ -97,12 +112,10 @@ def main(argv=None):
         if not p.exists():
             raise ValueError(f"Archivo a cargar no existe: {args.load}")
         data = json.loads(p.read_text(encoding="utf-8"))
-        # usar API nativa si existe
-        if hasattr(BackgammonGame, "from_dict"):
-            game = BackgammonGame.from_dict(data)  # type: ignore[attr-defined]
-        else:
-            # fallback mínimo
-            game.setup_board()
+        # Soporta ambos formatos: plano o envuelto {"board": {...}}
+        if "board" in data and isinstance(data["board"], dict):
+            data = data["board"]
+        game = BackgammonGame.from_dict(data)
 
     if args.setup:
         game.setup_board()
@@ -147,7 +160,6 @@ def main(argv=None):
                 print(f"Bear-off: {origin} (pip {pip})")
             else:
                 print(f"Move: {origin}->{real_dest} (pip {pip})")
-            # coherencia con tests: siempre mostrar luego de cada move
             print(f"Dados: {game.last_roll()}")
             print(f"Pips: {game.pips()}")
 
@@ -176,17 +188,16 @@ def main(argv=None):
         print("Turno finalizado.")
         print(f"Dados: {game.last_roll()}")
         print(f"Pips: {game.pips()}")
-        # Mostrar siguiente jugador
+        # Mostrar jugador actual y chequear victoria del jugador anterior
         nxt = game.current_player()
         ncolor = getattr(nxt, "get_color", lambda: getattr(nxt, "_Player__color__", "unknown"))()
         print(f"Turno ahora: {ncolor}")
 
-        # Chequear victoria del jugador anterior
-        prev_idx = (game._BackgammonGame__current_player_index__ - 1) % game.num_players()
+        prev_idx = _idx_prev_del_actual(game)
         prev = game.players()[prev_idx]
         prev_color = getattr(prev, "get_color", lambda: getattr(prev, "_Player__color__", "unknown"))()
         prev_int = Board.WHITE if prev_color == "white" else Board.BLACK
-        if game.has_won(prev_int):
+        if hasattr(game, "has_won") and game.has_won(prev_int):
             print(f"¡Victoria de {prev_color}!")
 
     # History
@@ -201,7 +212,7 @@ def main(argv=None):
     if args.save:
         p = Path(args.save)
         p.parent.mkdir(parents=True, exist_ok=True)
-        data = game.to_dict()
+        data = game.to_dict()  # formato PLANO (con 'points' en la raíz)
         p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 

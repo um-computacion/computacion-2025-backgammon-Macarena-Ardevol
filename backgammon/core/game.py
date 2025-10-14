@@ -105,6 +105,9 @@ class BackgammonGame:
         return self.can_enter_from_bar(pip)
 
     def enter_from_bar(self, pip: int) -> int:
+        # validar que el pip esté disponible en este turno
+        if pip not in self.__pips__:
+            raise ValueError("Pip no disponible en este turno")
         color = self._current_color_int()
         dest = self.__board__.enter_from_bar(pip, color)
         pips = list(self.__pips__)
@@ -210,6 +213,9 @@ class BackgammonGame:
         return bool(self.legal_moves() or self.legal_bear_off_moves())
 
     def can_play_move(self, origin: int, pip: int) -> bool:
+        # guardia: si no hay turno activo, no se puede jugar
+        if self.__last_roll__ is None:
+            return False
         color = self._current_color_int()
         if self._has_pieces_on_bar(color):
             return origin == -1 and self.can_enter_from_bar(pip)

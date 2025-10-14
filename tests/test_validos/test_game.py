@@ -123,19 +123,18 @@ class TestGameValidos(unittest.TestCase):
         b.set_point(6, -2)   # bloquear 7->6
         b.set_point(4, -2)   # bloquear 5->4
         game.start_turn((1, 1))
-        # Ahora debería auto-rotar porque no hay jugadas con (1,1)
         ok = game.auto_end_turn()
         self.assertTrue(ok)
         self.assertEqual(game.pips(), ())
         self.assertEqual(game.current_player().__color__, "black")
 
     def test_white_enter_from_bar_simple(self):
-        # Preparamos un golpe para enviar una blanca a la barra
+        # Hacer un “hit” correcto: poner blot blanco en 17 y mover negra 16->17 (pip 1)
         b = self.g.board()
-        b.set_point(18, 1)       # blanca en 19(=idx 18)
-        b.set_point(16, -1)      # negra en 17
-        dest = b.move(16, 1, Board.BLACK)  # 17->18 golpea blanca
-        self.assertEqual(dest, 17)  # índice 17 tras sumar 1 desde 16
+        b.set_point(17, 1)       # blanca en 18(=idx 17)
+        b.set_point(16, -1)      # negra en 17(=idx 16)
+        dest = b.move(16, 1, Board.BLACK)  # 16+1=17 golpea blanca en 17
+        self.assertEqual(dest, 17)
         self.assertEqual(b.bar_count(Board.WHITE), 1)
 
         # Turno de WHITE con pip=6 → entrada en 24-6=18 si no está bloqueado
@@ -144,23 +143,18 @@ class TestGameValidos(unittest.TestCase):
             b.set_point(18, -1)  # dejar blot para permitir entrada
         self.assertTrue(self.g.can_enter(6))
         d = self.g.enter_from_bar(6)
-        self.assertIn(d, range(18, 24))     # home de BLACK
+        self.assertIn(d, range(18, 24))
         self.assertEqual(b.bar_count(Board.WHITE), 0)
 
     def test_cannot_move_normal_if_bar_not_empty(self):
         b = self.g.board()
-        # Dejar un blot blanca y golpear con negras
-        b.set_point(10, 1)
-        b.set_point(9, -1)
-        b.move(9, 1, Board.BLACK)   # golpe a blanca -> barra blanca = 1
+        b.set_point(10, 1)        # blot blanca en 10
+        b.set_point(9, -1)        # negra en 9
+        b.move(9, 1, Board.BLACK) # 9->10 golpea y manda blanca a barra
         self.assertEqual(b.bar_count(Board.WHITE), 1)
         self.g.start_turn((3, 4))
-        # Mientras haya barra, no puede mover normal
         self.assertFalse(self.g.can_play_move(7, 3))
-        # Pero sí puede entrar si el destino no está bloqueado
-        # White entra con 3 en idx 21 (24-3)
         self.assertTrue(self.g.can_enter(3))
-
 
     def test_history_acumula_moves_y_enter(self):
         g = BackgammonGame()
@@ -175,11 +169,26 @@ class TestGameValidos(unittest.TestCase):
         g.apply_move(7, 1)  # WHITE golpea y manda una negra a la barra
 
         hist = g.turn_history()
-        # origin=7 y tipo "move" (si la history guarda 'kind', lo aceptamos)
         self.assertTrue(any((h[0] == 7 and (len(h) < 5 or h[4] in ("move", "enter", "off"))) for h in hist))
 
+        # Consumir el pip restante si es legal; si no, cancelar el turno para poder rotar
+        if g.has_any_move():
+            # intentar una jugada simple legal; si no hay, vaciar pips
+            try:
+                lm = g.legal_moves()
+                if lm:
+                    (o, d, pip) = lm[0]
+                    g.apply_move(o, pip)
+                else:
+                    g._BackgammonGame__pips__ = tuple()
+            except Exception:
+                g._BackgammonGame__pips__ = tuple()
+        else:
+            g._BackgammonGame__pips__ = tuple()
+
+        g.end_turn()  
+
         # Turno negro: intentar entrar desde barra si es posible
-        g.end_turn()
         g.start_turn((3, 3))
         try:
             if hasattr(g, "can_enter") and callable(getattr(g, "can_enter")):
@@ -189,7 +198,6 @@ class TestGameValidos(unittest.TestCase):
                 if g.can_enter_from_bar(3):
                     g.apply_move(-1, 3)
             else:
-                # Intento directo; si está bloqueado puede levantar ValueError y está bien
                 try:
                     g.apply_move(-1, 3)
                 except ValueError:
@@ -198,7 +206,6 @@ class TestGameValidos(unittest.TestCase):
             self.fail("enter_from_bar no debería explotar con errores inesperados")
 
     def test_has_won_dispara_con_bear_off_total_si_soportado(self):
-        # Solo corre si Board/Game soportan borne-off
         if not all(hasattr(Board, attr) for attr in ("borne_off_count", "all_in_home", "home_indices")):
             self.skipTest("Bear-off no implementado en Board")
 
@@ -208,13 +215,11 @@ class TestGameValidos(unittest.TestCase):
         g.setup_board()
 
         b = g.board()
-        # Vaciar tablero y poner 15 blancas en el home (punto 0) como ejemplo simple
         for i in range(24):
             b.set_point(i, 0)
         b.set_point(0, 15)
 
         g.start_turn((6, 6))
-        # Intentamos retirar algunas (según reglas implementadas)
         intentos = 0
         for _ in range(4):
             if hasattr(g, "can_bear_off") and g.can_bear_off(0, 6):
@@ -228,7 +233,7 @@ class TestGameValidos(unittest.TestCase):
                     break
 
         white_off = b.borne_off_count(Board.WHITE)
-        self.assertGreaterEqual(white_off, 0)  # al menos no explota
+        self.assertGreaterEqual(white_off, 0)
 
 
 if __name__ == "__main__":
