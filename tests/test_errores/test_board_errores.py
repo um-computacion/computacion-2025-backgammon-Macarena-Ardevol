@@ -55,5 +55,13 @@ class TestBoardErrores(unittest.TestCase):
         b.setup_initial()
         self.assertFalse(b.can_move(10, 1, Board.WHITE))
 
+    def test_bear_off_falla_sin_all_in_home_unittest():
+        from backgammon.core.board import Board
+        b = Board(); b.setup_initial()
+        assert not b.all_in_home(Board.WHITE)
+        with unittest.TestCase().assertRaises(Exception):
+         b.bear_off(5, 6, Board.WHITE)
+
+
 if __name__ == "__main__":
     unittest.main()

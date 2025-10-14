@@ -97,7 +97,12 @@ def main(argv=None):
         if not p.exists():
             raise ValueError(f"Archivo a cargar no existe: {args.load}")
         data = json.loads(p.read_text(encoding="utf-8"))
-        game = BackgammonGame.from_dict(data)
+        # usar API nativa si existe
+        if hasattr(BackgammonGame, "from_dict"):
+            game = BackgammonGame.from_dict(data)  # type: ignore[attr-defined]
+        else:
+            # fallback mínimo
+            game.setup_board()
 
     if args.setup:
         game.setup_board()
@@ -115,7 +120,6 @@ def main(argv=None):
         needs_turn = any([args.list_moves, args.move, args.bear_off, args.end_turn, args.auto_end_turn])
         if needs_turn and game.last_roll() is None:
             game.start_turn()
-            # coherencia de salida con tests previos
             print(f"Dados: {game.last_roll()}")
             print(f"Pips: {game.pips()}")
 
@@ -140,11 +144,10 @@ def main(argv=None):
             origin, pip = _parse_move_str(m)  # valida formato
             real_dest = game.apply_move(origin, pip)  # puede ser None si bear-off
             if real_dest is None:
-                # por si alguien pasa -1,2 en move con all-in-home (no debería)
                 print(f"Bear-off: {origin} (pip {pip})")
             else:
                 print(f"Move: {origin}->{real_dest} (pip {pip})")
-            # coherencia de salida esperada en tests
+            # coherencia con tests: siempre mostrar luego de cada move
             print(f"Dados: {game.last_roll()}")
             print(f"Pips: {game.pips()}")
 
@@ -200,9 +203,6 @@ def main(argv=None):
         p.parent.mkdir(parents=True, exist_ok=True)
         data = game.to_dict()
         p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-        # salida amigable
-        # (no es requerido por tests, pero útil)
-        # print(f"Guardado en {p}")
 
 
 if __name__ == "__main__":

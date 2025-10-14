@@ -3,34 +3,31 @@
 
 Implementación del juego **Backgammon** en Python para la cátedra de Computación 2025.  
 El proyecto prioriza **POO + SOLID**, pruebas automatizadas y mejora continua.  
-Incluye una **CLI funcional** y (próximamente) una interfaz visual con **Pygame**.
-
+Incluye una **CLI funcional** y una interfaz visual mínima con **Pygame**.
 
 ## Descripción breve
-
-- **Core del juego:** tablero, jugadores, dados, turnos, barra, borne-off y victoria.  
-- **CLI:** operaciones de setup, tiradas fijas o automáticas, movimientos, entradas desde barra y bear-off.  
-- **Pygame UI:** interfaz visual mínima, con selección de puntos, animaciones básicas y soporte para eventos del teclado.  
-- **Testing:** separación entre *tests válidos* y *tests de errores*, integrados con GitHub Actions.
-
+- **Core del juego**: tablero, jugadores, dados, turnos, barra (capturas), bear-off (retirar fichas) y condición de victoria.
+- **CLI**: setup del tablero, tiradas fijas o automáticas, listar/aplicar movimientos, entrar desde barra, bear-off, historial, estado, guardar/cargar, cierre y auto-cierre de turno.
+- **Pygame UI**: interfaz visual mínima con selección por click, panel lateral de estado/ayuda e interacción básica por teclado.
+- **Testing**: separación entre *tests válidos* y *tests de errores*, integrados con CI en GitHub Actions.
 
 ## Estructura del proyecto
-
 backgammon/
-   core/
+  core/
     board.py
     dice.py
     player.py
     checker.py
     game.py
+
   cli/
     app.py
-    main.py
+    __main__.py        (entrada para `python -m backgammon.cli`)
   pygame_ui/
-    main.py
+    __main__.py        (entrada para `python -m backgammon.pygame_ui`)
 
-  assets/
-    requirements.txt
+assets/
+requirements.txt
 
 tests/
   test_validos/
@@ -38,6 +35,7 @@ tests/
     test_game.py
     test_cli.py
     test_dice_checker_player.py
+
   test_errores/
     test_board_errores.py
     test_game_errores.py
@@ -51,156 +49,133 @@ prompts-testing.md
 prompts-documentacion.md
 .github/workflows/ci.yml
 
-
 ## Requisitos
-
-- Python **3.10+**
-- `pip` actualizado
+- Python 3.10+
+- pip actualizado
 
 ## Instalación de dependencias
-
 python -m pip install --upgrade pip
 pip install -r backgammon/requirements.txt
 
 ## Uso en modo CLI
 
 ### Inicializar tablero y usar una tirada fija
-
 python -m backgammon.cli --setup --roll 3,4
 
+`--roll a,b` acepta enteros entre 1 y 6. Formatos inválidos o valores vacíos generan `ValueError`.
 
-`--roll a,b` acepta enteros entre 1 y 6.  
-Formatos inválidos o valores vacíos generan `ValueError`.
-
-### Tirada automática (sin setup)
-
+### Tirada automática (sin --roll explícito)
 python -m backgammon.cli
 
-### Tirar y mover en un paso
+### Listar movimientos legales del turno
+python -m backgammon.cli --setup --roll 3,4 --list-moves
 
-python -m backgammon.cli --setup --roll 3,4 --move 7,3
+### Mover (uno o más movimientos origin,pip)
+python -m backgammon.cli --setup --roll 3,4 --move 7,3 --move 5,4
 
+### Entrar desde barra (si tenés fichas capturadas)
+# ejemplo genérico (el parseo es origin,pip; para barra se usa origin=-1)
+python -m backgammon.cli --setup --roll 3,1 --move -1,3
 
-Inicializa el tablero, fija la tirada (3,4) y mueve una ficha blanca de la posición 7 a la 4 (consume el pip 3).
+### Bear-off (retirar fichas cuando todas están en el home)
+python -m backgammon.cli --setup --roll 6,5 --bear-off 5,5 --bear-off 5,6
+Notas:
+- Retiro exacto: pip que “salta” exactamente fuera del tablero.
+- Retiro inexacto: permitido si no quedan fichas en puntos más alejados del home.
 
-### Finalizar turno (todos los pips consumidos)
-
-python -m backgammon.cli --setup --roll 3,4 --move 7,3 --move 5,4 --end-turn
-
-
-### Auto-cerrar turno si no hay jugadas legales
-
-python -m backgammon.cli --setup --roll 1,1 --auto-end-turn
-
-
-### Ver historial del turno
-
+### Historial del turno
 python -m backgammon.cli --setup --roll 3,4 --move 7,3 --history
 
-
-### Mostrar estado (jugador actual)
-
+### Mostrar estado actual
 python -m backgammon.cli --status
 
+### Finalizar turno (requiere que no queden pips)
+python -m backgammon.cli --setup --roll 3,4 --move 7,3 --move 5,4 --end-turn
 
-### Guardar y cargar partidas
+### Auto-cerrar turno si no hay jugadas legales
+python -m backgammon.cli --setup --roll 1,1 --auto-end-turn
 
+### Guardar y cargar partida (JSON)
 python -m backgammon.cli --setup --roll 3,4 --move 7,3 --save partida.json
 python -m backgammon.cli --load partida.json --status
 
-
-### Bear-off (retirar fichas)
-
-python -m backgammon.cli --setup --roll 6,5 --bear-off 5,5 --bear-off 5,6
-
-
-Retira fichas blancas desde el home si todas están dentro.  
-Permite pip mayor si no hay fichas en puntos más altos del home.
-
-
 ## Interfaz Pygame (base mínima)
-
 Requiere instalación local de Pygame (no se incluye en CI).
 
-**Instalar localmente:**
-
+Instalar:
 pip install pygame
 
-
-**Ejecutar la UI:**
-
+Ejecutar:
 python -m backgammon.pygame_ui
 
-
-**Controles principales:**
-- Click: seleccionar ORIGEN y DESTINO (según color actual)
-- T: alternar color (White / Black)
-- U: deshacer movimiento
-- R: resetear tablero
-- ESC / Q: salir
-- H: mostrar ayuda
-- FPS visibles, puntos numerados (0..23)
-
-En la UI mínima se puede pasar el mouse sobre los puntos, ver información, seleccionar fichas y simular jugadas simples.
+Controles principales:
+- ESPACIO: tirar dados | F: tirada fija (3,4)
+- Click: seleccionar ORIGEN → DESTINO (usa un pip disponible)
+- U: deshacer jugada | C: cancelar turno a inicio de tirada
+- E: fin de turno (si no hay pips) | A: auto-end si no hay jugadas
+- G: guardar partida | L: cargar partida | R: resetear
+- S: captura de pantalla | ESC/Q: salir
+Panel lateral: estado (jugador, dados, pips), ayuda y lista de jugadas del turno.
 
 ## Cómo correr los tests
 
-El proyecto incluye un conjunto de **tests automatizados** divididos en dos grupos:
-
-- *Tests válidos:* verifican el comportamiento correcto del sistema.  
-- *Tests de errores:* validan la respuesta ante entradas inválidas o situaciones límite.
-
-
-### Ejecución de todos los tests
-
+### Ejecutar todos
 python -m unittest discover
 
-
-### Ejecutar un archivo de tests específico
-
+### Ejecutar un archivo específico
 python -m unittest tests/test_validos/test_game.py
 
-
 ### Interpretación de resultados
-
-#### Todos los tests pasan:
-
+Todos OK:
 ..
-Ran 2 tests in 0.001s
-
+Ran N tests in X.XXXs
 OK
 
-
-#### Un test falla:
-
+Falla:
 .F
 FAIL: test_algo (tests.test_validos.test_game.TestGame)
-AssertionError: 'A' != 'B'
+AssertionError: ...
 
-FAILED (failures=1)
-
-
-#### Error en ejecución:
-
+Error en ejecución:
 E
 ERROR: test_error (tests.test_errores.test_game_errores.TestGameErrores)
 ValueError: Movimiento inválido para el estado actual del tablero
 
-FAILED (errors=1)
+## Cobertura de tests (opcional)
+Instalar:
+python -m pip install coverage
+
+Ejecutar cobertura:
+coverage run -m unittest discover
+coverage report -m
+
+HTML:
+coverage html
+# abrir htmlcov/index.html
+
+Sugerencia .coveragerc:
+[run]
+branch = True
+source = backgammon
+omit =
+  */tests/*
+  */venv/*
+  */.venv/*
+
+[report]
+exclude_lines =
+  pragma: no cover
+  if __name__ == .__main__.:
 
 ## Convenciones
-
-- Atributos privados con formato `self.__nombre__`.  
-- Clases y métodos documentados con docstrings.  
-- Cambios incrementales y trazables (máx. 3 commits/día contables).  
-- Respeto del principio **TDD**: primero las pruebas, luego la implementación.  
-- Código validado con **unittest** y CI en GitHub Actions.
-
+- Atributos privados con formato `self.__nombre__`.
+- Docstrings en clases y métodos.
+- Cambios incrementales y trazables.
+- Enfoque TDD: pruebas primero, luego implementación.
 
 ## Estado actual
-
-- Core completo (`Board`, `Game`, `Player`, `Dice`, `Checker`)
-- CLI funcional con `--setup`, `--move`, `--end-turn`, `--auto-end-turn`, `--bear-off`, `--save`, `--load`
-- Tests divididos por categoría
-- UI Pygame base (interactiva)
+- Core estable (`Board`, `Game`, `Player`, `Dice`, `Checker`)
+- CLI completa: `--setup`, `--roll`, `--list-moves`, `--move`, `--bear-off`, `--end-turn`, `--auto-end-turn`, `--history`, `--status`, `--save`, `--load`
+- Tests divididos por categoría (válidos / errores)
+- UI Pygame base operativa
 - Próximo sprint: mejoras visuales, efectos y menú de inicio
