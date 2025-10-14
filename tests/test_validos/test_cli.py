@@ -103,6 +103,56 @@ class TestCLIValidos(unittest.TestCase):
             except Exception:
                 pass
 
+    def test_cli_list_moves_y_status_con_roll_auto(self):
+      # Sin --roll explícito pero pidiendo acciones → turno automático
+        from backgammon.cli.app import main
+        import io, contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+          main(["--setup", "--list-moves"])
+        out = buf.getvalue()
+        self.assertIn("Legal moves:", out)
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+          main(["--status"])
+        out = buf.getvalue()
+        self.assertIn("Estado:", out)
+        self.assertIn("Pips:", out)
+
+    def test_cli_guardar_y_cargar_roundtrip(self):
+        from backgammon.cli.app import main
+        import io, contextlib, json, os
+        from pathlib import Path
+
+        tmp = Path("tmp_tests_cli"); tmp.mkdir(exist_ok=True)
+        savefile = tmp / "partida.json"
+
+      # Guardar tras una jugada
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+           main(["--setup", "--roll", "3,4", "--move", "7,3", "--save", str(savefile)])
+        self.assertTrue(savefile.exists())
+
+        data = json.loads(savefile.read_text(encoding="utf-8"))
+        self.assertIn("board", data)
+        self.assertIn("players", data)
+
+    # Cargar y consultar estado
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+           main(["--load", str(savefile), "--status"])
+        out = buf.getvalue()
+        self.assertIn("Estado:", out)
+        self.assertIn("Pips:", out)
+
+    # Limpieza
+        try:
+            savefile.unlink()
+            tmp.rmdir()
+        except Exception:
+             pass
+
 
 if __name__ == "__main__":
     unittest.main()
