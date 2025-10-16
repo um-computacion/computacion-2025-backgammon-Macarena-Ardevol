@@ -407,27 +407,12 @@ def main():
             if origin_idx is not None and legal_dests:
                 for (d, pip) in legal_dests:
                     poly = tri_polygon_top(d, col_w) if d <= 11 else tri_polygon_bottom(d - 12, col_w)
-                    pygame.draw.polygon(screen, LEGAL, poly, width=3)
+                    pygame.draw.polygon(screen, LEGAL, poly, width=4)  # borde más marcado
                     bx, by = tri_center(d, col_w)
                     by = by - 16 if d <= 11 else by + 16
                     pygame.draw.circle(screen, LEGAL, (bx, by), BADGE_R)
                     txt = font_badge.render(str(pip), True, (255, 255, 255))
                     screen.blit(txt, txt.get_rect(center=(bx, by)))
-
-            # Totales
-            white_total = board.count_total(Board.WHITE)
-            black_total = board.count_total(Board.BLACK)
-            info = font.render(f"White: {white_total} | Black: {black_total}", True, TXT)
-            screen.blit(info, (BOARD_LEFT, MARGIN - 28))
-
-            # Etiquetas 0..23
-            for i in range(12):
-                cx = BOARD_LEFT + i * col_w + col_w / 2
-                t1 = font_small.render(str(i), True, TXT)
-                screen.blit(t1, t1.get_rect(center=(cx, MARGIN + TRI_H + 10)))
-                idxb = 12 + i
-                t2 = font_small.render(str(idxb), True, TXT)
-                screen.blit(t2, t2.get_rect(center=(cx, H - MARGIN - TRI_H - 12)))
 
             # Fichas
             def draw_stack(i_idx, top_band: bool):
@@ -496,14 +481,32 @@ def main():
                 surf = font_small.render(line, True, TXT)
                 screen.blit(surf, (panel_x + 10, y)); y += 18
 
-            # Estado
+            # Totales y estado ampliado (incluye barra/off de ambos colores)
+            white_total = board.count_total(Board.WHITE)
+            black_total = board.count_total(Board.BLACK)
+
+            # Conteos de barra / off de forma robusta
+            white_bar = board.bar_count(Board.WHITE)
+            black_bar = board.bar_count(Board.BLACK)
+            if hasattr(board, "off_count"):
+                white_off = board.off_count(Board.WHITE)
+                black_off = board.off_count(Board.BLACK)
+            else:
+                # fallback a API de Game si Board no exportara off_count
+                white_off = game.borne_off_count(Board.WHITE)
+                black_off = game.borne_off_count(Board.BLACK)
+
             cur_lbl = owner_label(current_color_int(game))
             roll = game.last_roll()
             pips_txt = str(game.pips())
-            state_y = H - MARGIN - 126
+
+            # Bloque “Estado”
+            state_y = H - MARGIN - 174
             screen.blit(font_small.render(f"Jugador: {cur_lbl}", True, TXT), (panel_x + 10, state_y)); state_y += 18
-            screen.blit(font_small.render(f"Dados: {roll}",   True, TXT), (panel_x + 10, state_y));    state_y += 18
-            screen.blit(font_small.render(f"Pips:  {pips_txt}",True, TXT), (panel_x + 10, state_y));   state_y += 18
+            screen.blit(font_small.render(f"Dados:   {roll}",   True, TXT), (panel_x + 10, state_y)); state_y += 18
+            screen.blit(font_small.render(f"Pips:    {pips_txt}",True, TXT), (panel_x + 10, state_y)); state_y += 18
+            screen.blit(font_small.render(f"White: board {white_total}  | bar {white_bar}  | off {white_off}", True, TXT), (panel_x + 10, state_y)); state_y += 18
+            screen.blit(font_small.render(f"Black: board {black_total}  | bar {black_bar}  | off {black_off}", True, TXT), (panel_x + 10, state_y)); state_y += 18
 
             # Mensaje de estado (una sola línea)
             msg_txt = (message or "Listo")
@@ -616,4 +619,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
