@@ -34,6 +34,12 @@ class TestCLIErrores(unittest.TestCase):
         with self.assertRaises(ValueError):
             cli_main(["--load", "no_existe_abc123.json"])
 
+    def test_cli_end_turn_con_pips_pendientes_levanta(self):
+        from backgammon.cli.app import main as cli_main
+    # Con pips sin consumir, --end-turn debe levantar ValueError
+        with self.assertRaises(ValueError):
+            cli_main(["--setup", "--roll", "3,4", "--end-turn"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,2 +1,6 @@
 __pycache__/
 *.pyc
+backgammon/core/__pycache__/board.cpython-310.pyc
+backgammon/core/__pycache__/dice.cpython-310.pyc
+backgammon/core/__pycache__/game.cpython-310.pyc
+backgammon/core/__pycache__/player.cpython-310.pyc

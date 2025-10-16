@@ -79,5 +79,30 @@ class TestBoardValidos(unittest.TestCase):
         self.assertGreater(b.get_point(9), 0)
         self.assertEqual(b.bar_count(Board.BLACK), 1)
 
+def test_bear_off_white_exact_and_inexact():
+    from backgammon.core.board import Board
+    b = Board()
+    # situar TODAS las blancas (15) en home: 0..5
+    P = [0]*24
+    P[5] = 2   # dos en el 5
+    P[4] = 5
+    P[3] = 3
+    P[2] = 3
+    P[1] = 2
+    # total = 15
+    for i, v in enumerate(P):
+        b.set_point(i, v)
+    # no barra ni off
+    # exacto: desde 5 con pip=6 -> off permitido
+    assert b.all_in_home(Board.WHITE)
+    assert b.can_bear_off(5, 6, Board.WHITE)
+    b.bear_off(5, 6, Board.WHITE)
+    assert b.borne_off_count(Board.WHITE) == 1
+
+    # inexacto: desde 1 con pip=6 -> permitido solo si no hay fichas en >1 (dentro de home)
+    # aún quedan fichas en 2,3,4 -> NO permitido
+    assert not b.can_bear_off(1, 6, Board.WHITE)
+
+
 if __name__ == "__main__":
     unittest.main()

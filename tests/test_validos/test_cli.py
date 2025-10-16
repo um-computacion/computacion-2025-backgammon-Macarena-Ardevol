@@ -71,22 +71,17 @@ class TestCLIValidos(unittest.TestCase):
 
     def test_cli_save_and_load_roundtrip(self):
         from backgammon.cli.app import main as cli_main
-
         tmpdir = Path("tmp_tests"); tmpdir.mkdir(exist_ok=True)
         savefile = tmpdir / "partida.json"
-
         try:
-            # Guardar luego de una jugada
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
                 cli_main(["--setup", "--roll", "3,4", "--move", "7,3", "--save", str(savefile)])
             self.assertTrue(savefile.exists())
-
             data = json.loads(savefile.read_text(encoding="utf-8"))
-            self.assertIn("board", data)
+            # Clave correcta del schema actual:
+            self.assertIn("points", data)
             self.assertIn("players", data)
-
-            # Cargar y consultar status (no debe explotar)
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
                 cli_main(["--load", str(savefile), "--status"])
@@ -94,14 +89,53 @@ class TestCLIValidos(unittest.TestCase):
             self.assertIn("Estado:", out)
             self.assertIn("Pips:", out)
         finally:
-            # Limpieza
             try:
-                if savefile.exists():
-                    savefile.unlink()
-                if tmpdir.exists():
-                    os.rmdir(tmpdir)
+                if savefile.exists(): savefile.unlink()
+                if tmpdir.exists(): os.rmdir(tmpdir)
             except Exception:
                 pass
+
+    def test_cli_list_moves_y_status_con_roll_auto(self):
+        from backgammon.cli.app import main
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            main(["--setup", "--list-moves"])
+        out = buf.getvalue()
+        self.assertIn("Legal moves:", out)
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            main(["--status"])
+        out = buf.getvalue()
+        self.assertIn("Estado:", out)
+        self.assertIn("Pips:", out)
+
+    def test_cli_guardar_y_cargar_roundtrip(self):
+        from backgammon.cli.app import main
+        tmp = Path("tmp_tests_cli"); tmp.mkdir(exist_ok=True)
+        savefile = tmp / "partida.json"
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            main(["--setup", "--roll", "3,4", "--move", "7,3", "--save", str(savefile)])
+        self.assertTrue(savefile.exists())
+
+        data = json.loads(savefile.read_text(encoding="utf-8"))
+        self.assertIn("points", data)
+        self.assertIn("players", data)
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            main(["--load", str(savefile), "--status"])
+        out = buf.getvalue()
+        self.assertIn("Estado:", out)
+        self.assertIn("Pips:", out)
+
+        try:
+            savefile.unlink()
+            tmp.rmdir()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
