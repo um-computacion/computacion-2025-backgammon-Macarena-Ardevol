@@ -111,16 +111,19 @@ def main():
         return res
 
     # ---------- escena de juego (reusa tu loop existente) ----------
-    def run_game_loop(screen, clock, font, font_small, font_badge):
+    def run_game_loop(screen, clock, font, font_small, font_badge, preloaded_game: "BackgammonGame|None" = None):
         nonlocal LAST_MOVE_CLR, RIVAL_TURN_CLR, LEGAL, OUTLINE
         nonlocal BOARD_W, BOARD_LEFT, MARGIN, TRI_H, PANEL_W, BG, BG_PANEL, SEP, TOP_CLR, BOT_CLR, TXT
         nonlocal R, GAP, BADGE_R, BOARD_RIGHT, W, H
 
-        # Juego real
-        game = BackgammonGame()
-        game.add_player("White", "white")
-        game.add_player("Black", "black")
-        game.setup_board()
+        # Juego real (opcionalmente pre-cargado)
+        if preloaded_game is not None:
+            game = preloaded_game
+        else:
+            game = BackgammonGame()
+            game.add_player("White", "white")
+            game.add_player("Black", "black")
+            game.setup_board()
         board = game.board()
 
         col_w = BOARD_W / 12
@@ -184,7 +187,7 @@ def main():
             # Eventos
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    # volver al menú en lugar de cerrar la app por completo
+                    # volver al menú
                     running = False
 
                 elif event.type == pygame.KEYDOWN:
@@ -549,6 +552,21 @@ def main():
         btn_load  = Button("Cargar última partida", (W//2 - 150, H//2 + 20, 300, 48))
         btn_exit  = Button("Salir", (W//2 - 150, H//2 + 80, 300, 48))
         info = "ESC para salir · ENTER para jugar"
+        sprint_footer = "Sprint 5 — Consolidación y Entrega Técnica"
+
+        # Ruta de guardado para el botón Cargar
+        SAVEDIR = Path("saves")
+        SAVEFILE = SAVEDIR / "last.json"
+
+        def try_load_game():
+            if SAVEFILE.exists():
+                try:
+                    with open(SAVEFILE, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    return BackgammonGame.from_dict(data)
+                except Exception:
+                    return None
+            return None
 
         in_menu = True
         while in_menu:
@@ -560,17 +578,18 @@ def main():
                         pygame.quit(); return
                     if event.key in (pygame.K_RETURN, pygame.K_SPACE):
                         # jugar directo
+                        pygame.display.set_caption("Backgammon - Juego")
                         run_game_loop(screen, clock, font, font_small, font_badge)
                         pygame.display.set_caption("Backgammon - Menú")
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     if btn_play.hit(event.pos):
+                        pygame.display.set_caption("Backgammon - Juego")
                         run_game_loop(screen, clock, font, font_small, font_badge)
                         pygame.display.set_caption("Backgammon - Menú")
                     elif btn_load.hit(event.pos):
-                        # Intentar cargar y entrar al loop reutilizando teclas de carga (L) apenas inicia
-                        # Aquí simplemente abrimos el loop; el propio juego permite L para cargar.
-                        # (Mantenemos comportamiento existente sin duplicar lógica)
-                        run_game_loop(screen, clock, font, font_small, font_badge)
+                        pre_g = try_load_game()
+                        pygame.display.set_caption("Backgammon - Juego")
+                        run_game_loop(screen, clock, font, font_small, font_badge, preloaded_game=pre_g)
                         pygame.display.set_caption("Backgammon - Menú")
                     elif btn_exit.hit(event.pos):
                         pygame.quit(); return
@@ -586,6 +605,10 @@ def main():
             screen.blit(font_small.render(info, True, (60, 64, 80)),
                         (W//2 - font_small.size(info)[0]//2, H - 60))
 
+            # Footer Sprint (compromiso del proyecto)
+            sf_surf = font_small.render(sprint_footer, True, (80, 84, 100))
+            screen.blit(sf_surf, (W//2 - sf_surf.get_width()//2, H - 34))
+
             pygame.display.flip()
             clock.tick(60)
     finally:
@@ -593,3 +616,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
