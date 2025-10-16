@@ -110,15 +110,11 @@ def main():
                 continue
         return res
 
-    # --- Init ---
-    pygame.init()
-    try:
-        screen = pygame.display.set_mode((W, H))
-        pygame.display.set_caption("Backgammon - UI mínima")
-        clock = pygame.time.Clock()
-        font = pygame.font.SysFont(None, 24)
-        font_small = pygame.font.SysFont(None, 16)
-        font_badge = pygame.font.SysFont(None, 14)
+    # ---------- escena de juego (reusa tu loop existente) ----------
+    def run_game_loop(screen, clock, font, font_small, font_badge):
+        nonlocal LAST_MOVE_CLR, RIVAL_TURN_CLR, LEGAL, OUTLINE
+        nonlocal BOARD_W, BOARD_LEFT, MARGIN, TRI_H, PANEL_W, BG, BG_PANEL, SEP, TOP_CLR, BOT_CLR, TXT
+        nonlocal R, GAP, BADGE_R, BOARD_RIGHT, W, H
 
         # Juego real
         game = BackgammonGame()
@@ -188,6 +184,7 @@ def main():
             # Eventos
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
+                    # volver al menú en lugar de cerrar la app por completo
                     running = False
 
                 elif event.type == pygame.KEYDOWN:
@@ -198,6 +195,7 @@ def main():
                             legal_dests = []
                             message = "Selección limpiada"
                         else:
+                            # ESC desde juego → volver al menú
                             running = False
 
                     elif event.key == pygame.K_q:
@@ -488,7 +486,7 @@ def main():
                 "- E: fin de turno  |  A: auto-end si no hay jugadas",
                 "- V: ver/ocultar turno rival",
                 "- G: guardar  |  L: cargar",
-                "- R: reset  |  S: captura  |  ESC/Q: salir",
+                "- R: reset  |  S: captura  |  ESC/Q: menú",
             ]
             y = MARGIN + 32
             for line in help_lines:
@@ -519,6 +517,74 @@ def main():
                     break
                 screen.blit(font_small.render(f"• {mv}", True, TXT), (panel_x + 14, y_list))
                 y_list += 16
+
+            pygame.display.flip()
+            clock.tick(60)
+
+    # ---------- menú simple ----------
+    pygame.init()
+    try:
+        screen = pygame.display.set_mode((W, H))
+        pygame.display.set_caption("Backgammon - Menú")
+        clock = pygame.time.Clock()
+        font = pygame.font.SysFont(None, 32)
+        font_small = pygame.font.SysFont(None, 20)
+        font_badge = pygame.font.SysFont(None, 14)
+
+        class Button:
+            def __init__(self, text, rect):
+                self.text = text
+                self.rect = pygame.Rect(rect)
+            def draw(self, surf, hover=False):
+                c = (220, 226, 244) if hover else (206, 214, 236)
+                pygame.draw.rect(surf, c, self.rect, border_radius=8)
+                pygame.draw.rect(surf, (80, 90, 120), self.rect, width=2, border_radius=8)
+                label = font.render(self.text, True, (30, 34, 46))
+                surf.blit(label, label.get_rect(center=self.rect.center))
+            def hit(self, pos):
+                return self.rect.collidepoint(pos)
+
+        title = "Backgammon — Menú"
+        btn_play  = Button("Jugar partida nueva", (W//2 - 150, H//2 - 40, 300, 48))
+        btn_load  = Button("Cargar última partida", (W//2 - 150, H//2 + 20, 300, 48))
+        btn_exit  = Button("Salir", (W//2 - 150, H//2 + 80, 300, 48))
+        info = "ESC para salir · ENTER para jugar"
+
+        in_menu = True
+        while in_menu:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit(); return
+                elif event.type == pygame.KEYDOWN:
+                    if event.key in (pygame.K_ESCAPE, pygame.K_q):
+                        pygame.quit(); return
+                    if event.key in (pygame.K_RETURN, pygame.K_SPACE):
+                        # jugar directo
+                        run_game_loop(screen, clock, font, font_small, font_badge)
+                        pygame.display.set_caption("Backgammon - Menú")
+                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    if btn_play.hit(event.pos):
+                        run_game_loop(screen, clock, font, font_small, font_badge)
+                        pygame.display.set_caption("Backgammon - Menú")
+                    elif btn_load.hit(event.pos):
+                        # Intentar cargar y entrar al loop reutilizando teclas de carga (L) apenas inicia
+                        # Aquí simplemente abrimos el loop; el propio juego permite L para cargar.
+                        # (Mantenemos comportamiento existente sin duplicar lógica)
+                        run_game_loop(screen, clock, font, font_small, font_badge)
+                        pygame.display.set_caption("Backgammon - Menú")
+                    elif btn_exit.hit(event.pos):
+                        pygame.quit(); return
+
+            # draw menú
+            screen.fill((238, 240, 248))
+            t = font.render(title, True, (28, 32, 40))
+            screen.blit(t, t.get_rect(center=(W//2, H//2 - 100)))
+            mx, my = pygame.mouse.get_pos()
+            btn_play.draw(screen, btn_play.hit((mx, my)))
+            btn_load.draw(screen, btn_load.hit((mx, my)))
+            btn_exit.draw(screen, btn_exit.hit((mx, my)))
+            screen.blit(font_small.render(info, True, (60, 64, 80)),
+                        (W//2 - font_small.size(info)[0]//2, H - 60))
 
             pygame.display.flip()
             clock.tick(60)
